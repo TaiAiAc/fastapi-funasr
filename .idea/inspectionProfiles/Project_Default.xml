@@ -1,0 +1,51 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="aerich" />
+          <option value="aiosqlite" />
+          <option value="annotated-types" />
+          <option value="anyio" />
+          <option value="argon2-cffi" />
+          <option value="argon2-cffi-bindings" />
+          <option value="asyncclick" />
+          <option value="cffi" />
+          <option value="click" />
+          <option value="dictdiffer" />
+          <option value="dnspython" />
+          <option value="email-validator" />
+          <option value="fastapi" />
+          <option value="fastapi-cache2" />
+          <option value="h11" />
+          <option value="idna" />
+          <option value="iso8601" />
+          <option value="loguru" />
+          <option value="orjson" />
+          <option value="passlib" />
+          <option value="pendulum" />
+          <option value="pycparser" />
+          <option value="pydantic" />
+          <option value="pydantic-core" />
+          <option value="pydantic-settings" />
+          <option value="pyjwt" />
+          <option value="pypika-tortoise" />
+          <option value="python-dateutil" />
+          <option value="python-dotenv" />
+          <option value="pytz" />
+          <option value="redis" />
+          <option value="setuptools" />
+          <option value="six" />
+          <option value="sniffio" />
+          <option value="starlette" />
+          <option value="tortoise-orm" />
+          <option value="typing-extensions" />
+          <option value="tzdata" />
+          <option value="uvicorn" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

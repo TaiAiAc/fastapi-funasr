@@ -1,0 +1,28 @@
+[project]
+name = "funasr-project"
+version = "0.1.0"
+description = "\"funasr>=1.1.5\","
+authors = [
+    { name = "Quiteer", email = "p602985@yeah.net" },
+]
+dependencies = [
+    "funasr>=1.1.5",
+    "modelscope>=1.10.0",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+    "fastapi>=0.119.0",
+    "uvicorn[standard]>=0.37.0", # 包含 websockets 和高性能依赖
+    "python-multipart", # 用于解析 form-data（上传文件）
+    "numpy",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "MIT" }
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
