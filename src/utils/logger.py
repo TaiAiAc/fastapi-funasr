@@ -1,5 +1,6 @@
 import logging
 import os
+import datetime
 from typing import Optional
 
 class Logger:
@@ -45,17 +46,29 @@ class Logger:
         log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
         cls._logger.setLevel(getattr(logging, log_level, logging.INFO))
         
-        # 创建处理器
-        handler = logging.StreamHandler()
-        
         # 设置日志格式
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-        handler.setFormatter(formatter)
+        
+        # 创建控制台处理器
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        
+        # 创建文件处理器 - 将日志保存到logs目录下
+        log_dir = "logs"
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # 获取当前日期，格式为YYYY-MM-DD
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        log_file = os.path.join(log_dir, f"{today}.log")
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setFormatter(formatter)
         
         # 添加处理器到logger
-        cls._logger.addHandler(handler)
+        cls._logger.addHandler(console_handler)
+        cls._logger.addHandler(file_handler)
         cls._initialized = True
 
 # 提供便捷使用方式
