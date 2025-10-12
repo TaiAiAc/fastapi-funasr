@@ -35,7 +35,10 @@
 
         // 连接 WebSocket
         const connectWebSocket = () => {
-            socket = new WebSocket('ws://localhost:8000/ws/asr');
+            // 获取当前页面的主机名和端口，避免硬编码
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
+            socket = new WebSocket(wsUrl);
 
             socket.onopen = () => {
                 log('✅ WebSocket 连接成功');

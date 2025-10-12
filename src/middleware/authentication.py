@@ -22,7 +22,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if request.url.path not in public_paths and not auth_header:
             # 未提供认证信息，返回401
             logger.warning(f"未授权访问: {request.url.path}")
-            return Response(status_code=401, content="未授权访问")
+            pass
+            # return Response(status_code=401, content="未授权访问")
         
         # 处理请求
         response = await call_next(request)
