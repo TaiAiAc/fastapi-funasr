@@ -5,13 +5,13 @@ from ..utils.logger import logger, info, error  # 使用统一的日志工具
 
 # 创建WebSocket相关的路由器 - 重命名为更准确的名称
 websocket_router = APIRouter(
-    prefix="/ws",  # 路由前缀
+    prefix="/funasr",  # 路由前缀
     tags=["WebSocket语音识别"],  # 更新标签以更准确反映功能
     responses={404: {"description": "Not found"}},
 )
 
 # 修复：使用正确的路由器对象
-@websocket_router.websocket("/asr")
+@websocket_router.websocket("/ws")
 async def websocket_asr(websocket: WebSocket):
     await websocket.accept()
     info("WebSocket 连接已建立")  # 使用日志替代print

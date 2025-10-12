@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from .middleware import MiddlewareManager  # 导入方式保持不变
 from .routes import register_routers
 
@@ -9,6 +10,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# 挂载静态文件服务
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # 注册中间件 - 使用方式保持不变
 MiddlewareManager.register_middlewares(app)
 
@@ -16,13 +20,9 @@ MiddlewareManager.register_middlewares(app)
 register_routers(app)
 
 
-# 根路径路由
+# 根路径路由 - 重定向到静态页面
+from fastapi.responses import RedirectResponse
+
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to FunASR Web Service!"}
-
-
-# 测试路由
-@app.get("/hello")
-def read_hello():
-    return {"message": "Hello, FunASR!"}
+    return RedirectResponse(url="/static/index.html")
