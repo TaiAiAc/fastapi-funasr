@@ -46,11 +46,12 @@
             };
 
             socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'result') {
-                    log(`💬 识别结果: ${data.text}`);
-                } else {
-                    log(`ℹ️ 服务端消息: ${JSON.stringify(data)}`);
+                const msg = JSON.parse(event.data);
+                if (msg.type === "vad_result") {
+                    console.log("新语音片段:", msg.segments); // [[0, 1200], [2500, 4000]]
+                    if (!msg.is_active) {
+                        console.log("说话结束，可以触发 ASR");
+                    }
                 }
             };
 
@@ -77,7 +78,9 @@
 
                 // 2. 请求麦克风权限
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioContext =  new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 16000  // ←←← 必须！    
+                });
                 const source = audioContext.createMediaStreamSource(mediaStream);
 
                 // 3. 创建脚本处理器（每 4096 个采样点回调一次）

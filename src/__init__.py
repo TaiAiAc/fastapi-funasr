@@ -3,7 +3,9 @@ from fastapi.staticfiles import StaticFiles
 from .middleware import MiddlewareManager
 from .routes import register_routers
 from .services import preload_vad_model, vad_service
-from .utils.logger import info, error
+from .services import preload_kws_model, kws_service
+from .services import preload_asr_model, asr_service
+from .utils.logger import  info, error
 
 # 创建 FastAPI 应用实例
 app = FastAPI(
@@ -26,24 +28,32 @@ register_routers(app)
 async def startup_event():
     """应用启动事件，用于预加载VAD模型"""
     info("应用启动中...")
+
+    # 尝试加载.env文件中的环境变量
     try:
-        # 使用单独的线程预加载VAD模型
+        from dotenv import load_dotenv
+
+        load_dotenv()  # 加载.env文件中的环境变量
+    except ImportError:
+        debug("dotenv模块未安装，无法加载.env文件中的环境变量")
+
+    # 导入FunASR相关库
+    try:
+        from funasr import __version__
+        import torch
+        info(f"FunASR版本: {__version__}")  
+    except ImportError as e:
+        error(f"导入FunASR相关库失败: {e}")
+        raise
+
+    try:
+        # 使用单独的线程预加载模型
         import asyncio
         loop = asyncio.get_event_loop()
         
-        # 预加载VAD模型
-        vad_future = loop.run_in_executor(None, preload_vad_model)
-        vad_success = await vad_future
-        
-        # 记录VAD模型加载状态
-        if vad_success:
-            info("VAD模型预加载成功！")
-            # 记录VAD模型初始化信息
-            vad_info = vad_service.get_init_info()
-            info(f"VAD模型初始化信息: {vad_info}")
-        else:
-            error("VAD模型预加载失败，语音端点检测功能可能无法使用！")
-            
+        loop.run_in_executor(None, preload_vad_model)
+        loop.run_in_executor(None, preload_kws_model)
+        loop.run_in_executor(None, preload_asr_model)
     except Exception as e:
         error(f"启动过程中发生异常: {e}")
 

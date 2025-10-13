@@ -1,26 +1,22 @@
+from fastapi import APIRouter, WebSocket
 import json
-import uuid
 import numpy as np
 from typing import Dict
-from fastapi import APIRouter, WebSocket
+import uuid
 
 from ..utils.logger import info, error
-from ..services.vad import vad_service  # 确保这是流式 VAD 服务
-from ..services.vad_stream import VADStream  # 确保这是流式 VAD 服务
+from ..services.vad_service import vad_service  # 确保这是流式 VAD 服务
+from ..services.vad_stream import VADStream  # 假设你把 VADStream 放在独立文件
 
-# 创建WebSocket相关的路由器
 websocket_router = APIRouter(
-    prefix="/funasr",  # 路由前缀
-    tags=["WebSocket语音识别"],  # API文档标签
+    prefix="/funasr",
+    tags=["WebSocket语音识别"],
     responses={404: {"description": "Not found"}},
 )
 
 # 管理多个客户端的流
 active_streams: Dict[str, VADStream] = {}
 
-# 每个会话的状态
-session_states: Dict[str, str] = {}  # "vad" | "kws" | "asr"
-audio_buffers: Dict[str, list] = {}  # 缓存音频用于 ASR
 
 @websocket_router.websocket("/ws")
 async def websocket_asr(websocket: WebSocket):
@@ -31,6 +27,7 @@ async def websocket_asr(websocket: WebSocket):
     """
     await websocket.accept()
     info("WebSocket 连接已建立")
+    
     session_id = str(uuid.uuid4())
     stream = None
 
@@ -42,26 +39,24 @@ async def websocket_asr(websocket: WebSocket):
                 "message": "VAD模型尚未初始化完成，语音端点检测功能将不可用"
             }))
             info("WebSocket连接建立但VAD模型未初始化")
+            # 可选择继续或关闭，这里允许继续但不处理音频
         else:
             stream = vad_service.create_stream()
             active_streams[session_id] = stream
-            session_states[session_id] = "vad"
-            audio_buffers[session_id] = []
 
         while True:
-            # 接收客户端发来的消息（可以是音频数据或控制命令）
+            # 接收客户端发来的消息（已经是 dict，因为用了 receive_json）
             data = await websocket.receive_json()
-            # 修复：使用data变量而不是未定义的message变量
-            msg_type = data.get("type")
             
+            msg_type = data.get("type")
+
             if msg_type == "start":
                 await websocket.send_text(json.dumps({"status": "started", "message": "开始接收音频"}))
                 info("客户端开始发送音频")
 
-
             elif msg_type == "audio":
                 if stream is None:
-                    await websocket.send_text(json.dumps({"error": "VAD模型未初始化"}))
+                    # 模型未初始化，跳过处理
                     continue
 
                 try:
@@ -105,7 +100,6 @@ async def websocket_asr(websocket: WebSocket):
 
             else:
                 await websocket.send_json({"type": "warning", "message": "未知消息类型"})
-
 
     except Exception as e:
         error(f"WebSocket 错误: {e}")
