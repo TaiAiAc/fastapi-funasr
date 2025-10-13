@@ -4,7 +4,7 @@
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
-from ..utils.logger import logger, log_request, log_response
+from ..utils import logger, log_request, log_response
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

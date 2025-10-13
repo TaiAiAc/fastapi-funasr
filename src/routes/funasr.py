@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict
 from fastapi import APIRouter, WebSocket
 
-from ..utils.logger import info, error
+from ..utils import info, error
 from ..services.vad import vad_service  # 确保这是流式 VAD 服务
 from ..services.vad_stream import VADStream  # 确保这是流式 VAD 服务
 

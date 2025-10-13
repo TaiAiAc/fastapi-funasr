@@ -4,7 +4,7 @@ import time
 import torch
 from typing import Dict, Any, Optional
 from funasr import AutoModel
-from ..utils.logger import logger, info, error, debug
+from ..utils import logger, info, error, debug
 from ..config import config_manager
 
 class ASRService:

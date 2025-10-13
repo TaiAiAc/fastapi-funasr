@@ -1,7 +1,7 @@
 """
 中间件管理器，用于统一注册所有中间件
 """
-from ..utils.logger import logger
+from ..utils import logger
 from .logging import LoggingMiddleware
 from .authentication import AuthenticationMiddleware
 from .error_handling import ErrorHandlingMiddleware

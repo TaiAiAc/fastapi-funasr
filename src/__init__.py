@@ -5,7 +5,7 @@ from .routes import register_routers
 from .services import preload_vad_model, vad_service
 from .services import preload_kws_model, kws_service
 from .services import preload_asr_model, asr_service
-from .utils.logger import  info, error
+from .utils import  info, error
 
 # 创建 FastAPI 应用实例
 app = FastAPI(

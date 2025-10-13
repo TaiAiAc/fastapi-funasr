@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict
 import uuid
 
-from ..utils.logger import info, error
+from ..utils import info, error
 from ..services.vad_service import vad_service  # 确保这是流式 VAD 服务
 from ..services.vad_stream import VADStream  # 假设你把 VADStream 放在独立文件
 

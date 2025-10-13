@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from typing import Optional
-from ..utils.logger import logger, info, error  # 使用统一的日志工具
+from ..utils import logger, info, error  # 使用统一的日志工具
 
 # 创建语音识别相关的路由器
 recognition_router = APIRouter(

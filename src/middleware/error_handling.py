@@ -3,7 +3,7 @@
 """
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from ..utils.logger import logger
+from ..utils import logger
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):

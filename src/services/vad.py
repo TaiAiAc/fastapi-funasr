@@ -1,7 +1,7 @@
 import os
 import time
 from typing import  Dict, Any, List, Tuple
-from ..utils.logger import logger, info, error, debug
+from ..utils import logger, info, error, debug
 from typing import List
 from .vad_stream import VADStream
 from ..config import config_manager

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from ..utils.logger import logger
+from ..utils import logger
 
 # 导入各个路由模块
 from .recognition import recognition_router
