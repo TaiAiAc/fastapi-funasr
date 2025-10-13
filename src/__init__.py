@@ -5,7 +5,7 @@ from .routes import register_routers
 from .services import preload_vad_model, vad_service
 from .services import preload_kws_model, kws_service
 from .services import preload_asr_model, asr_service
-from .utils import  info, error
+from .utils import info, error
 
 # 创建 FastAPI 应用实例
 app = FastAPI(
@@ -23,6 +23,7 @@ MiddlewareManager.register_middlewares(app)
 # 注册路由
 register_routers(app)
 
+
 # 应用启动时预加载模型
 @app.on_event("startup")
 async def startup_event():
@@ -32,8 +33,13 @@ async def startup_event():
     # 尝试加载.env文件中的环境变量
     try:
         from dotenv import load_dotenv
+        import os
 
         load_dotenv()  # 加载.env文件中的环境变量
+
+        test_env = os.getenv("APP_TEST")
+        print("测试读取环境变量", test_env)
+
     except ImportError:
         debug("dotenv模块未安装，无法加载.env文件中的环境变量")
 
@@ -41,7 +47,8 @@ async def startup_event():
     try:
         from funasr import __version__
         import torch
-        info(f"FunASR版本: {__version__}")  
+
+        info(f"FunASR版本: {__version__}")
     except ImportError as e:
         error(f"导入FunASR相关库失败: {e}")
         raise
@@ -49,8 +56,9 @@ async def startup_event():
     try:
         # 使用单独的线程预加载模型
         import asyncio
+
         loop = asyncio.get_event_loop()
-        
+
         loop.run_in_executor(None, preload_vad_model)
         loop.run_in_executor(None, preload_kws_model)
         loop.run_in_executor(None, preload_asr_model)
@@ -60,6 +68,7 @@ async def startup_event():
 
 # 根路径路由 - 重定向到静态页面
 from fastapi.responses import RedirectResponse
+
 
 @app.get("/")
 def read_root():
