@@ -1,28 +1,32 @@
 [project]
-name = "funasr-project"
+name = "web-service"
 version = "0.1.0"
-description = "\"funasr>=1.1.5\","
+description = "A simple web service"
 authors = [
     { name = "Quiteer", email = "p602985@yeah.net" },
 ]
 dependencies = [
-    "funasr>=1.1.5",
-    "modelscope>=1.10.0",
-    "torch>=2.0.0",
-    "torchaudio>=2.0.0",
     "fastapi>=0.119.0",
-    "uvicorn[standard]>=0.37.0", # 包含 websockets 和高性能依赖
-    "python-multipart", # 用于解析 form-data（上传文件）
-    "numpy",
+    "uvicorn[standard]>=0.37.0",
+    "python-multipart",
+    "python-dotenv>=0.9.9",  # 注意：包名是 python-dotenv，不是 dotenv！
+    "modelscope>=1.10.0",
+    "numpy>=1.21.0,<2.0",  # 👈 关键！禁止 NumPy 2.x
+    "torch==2.1.0",
+    "torchaudio==2.1.0",
+    "funasr>=1.2.7,<1.3.0",  # 👈 暂时锁定版本（见第二步）
 ]
 requires-python = ">=3.10"
 readme = "README.md"
-license = { text = "" }
+license = { text = "MIT" }  # 可选，但推荐
 
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
-
 [tool.pdm]
-distribution = true
+# 启用 PEP 582（本地包管理）
+[[tool.pdm.source]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+verify_ssl = true
