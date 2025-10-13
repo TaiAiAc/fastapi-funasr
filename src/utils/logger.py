@@ -43,7 +43,7 @@ class Logger:
             return
         
         # 设置默认日志级别，可以从环境变量读取，默认为INFO
-        log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+        log_level = os.environ.get("APP_LOG_LEVEL", "INFO").upper()
         cls._logger.setLevel(getattr(logging, log_level, logging.INFO))
         
         # 设置日志格式
