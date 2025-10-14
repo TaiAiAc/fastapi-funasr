@@ -81,34 +81,9 @@ uvicorn src:app --host 0.0.0.0 --port 8000 --workers 4
 
 ## 配置说明
 
-项目使用 `.env` 文件管理环境变量配置，主要配置项包括：
-
-```env
-# 可选值: DEBUG, INFO, WARNING, ERROR, CRITICAL
-APP_LOG_LEVEL="INFO"
-
-# VAD 模型配置
-FUNASR_VAD_MODEL_NAME="iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
-FUNASR_VAD_MODEL_REVISION="v2.0.4"
-FUNASR_VAD_DEVICE="auto"
-
-# CTC 模型配置
-FUNASR_CTC_MODEL_NAME="iic/speech_charctc_kws_phone-xiaoyun"
-FUNASR_CTC_MODEL_REVISION="v2.0.4"
-FUNASR_CTC_DEVICE="auto"
-```
-
 **注意**：修改 `.env` 文件后，需要重启服务以使配置生效。
 
 ## 常见问题
-
-### 端口被占用
-
-如果 8000 端口被占用，可以修改 `main.py` 中的 `port` 变量来更改端口：
-
-```python
-port = 8080  # 修改为可用端口
-```
 
 ### 依赖安装失败
 

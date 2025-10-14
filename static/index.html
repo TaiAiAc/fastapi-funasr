@@ -1,16 +1,29 @@
 <!-- static/index.html -->
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>FunASR 实时语音识别</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        button { padding: 10px 20px; font-size: 16px; margin: 5px; }
-        #log { margin-top: 20px; padding: 10px; background: #f0f0f0; height: 200px; overflow-y: auto; }
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin: 5px;
+      }
+      #log {
+        margin-top: 20px;
+        padding: 10px;
+        background: #f0f0f0;
+        height: 200px;
+        overflow-y: auto;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>🎤 FunASR 实时语音识别</h1>
     <button id="startBtn">开始录音</button>
     <button id="stopBtn" disabled>停止录音</button>
@@ -18,118 +31,135 @@
     <div id="log"></div>
 
     <script>
-        let socket = null;
-        let audioContext = null;
-        let processor = null;
-        let mediaStream = null;
+      let socket = null;
+      let audioContext = null;
+      let processor = null;
+      let mediaStream = null;
 
-        const log = (msg) => {
-            const logDiv = document.getElementById('log');
-            logDiv.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
-            logDiv.scrollTop = logDiv.scrollHeight;
+      const log = (msg) => {
+        const logDiv = document.getElementById("log");
+        logDiv.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+      };
+
+      const setStatus = (msg) => {
+        document.getElementById("status").innerText = `状态：${msg}`;
+      };
+
+      // 连接 WebSocket
+      const connectWebSocket = () => {
+        // 获取当前页面的主机名和端口，避免硬编码
+        const wsProtocol =
+          window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+          log("✅ WebSocket 连接成功");
+          setStatus("已连接");
         };
 
-        const setStatus = (msg) => {
-            document.getElementById('status').innerText = `状态：${msg}`;
+        socket.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "vad_result") {
+            console.log("新语音片段:", msg.segments); // [[0, 1200], [2500, 4000]]
+            if (!msg.is_active) {
+              console.log("说话结束，可以触发 ASR");
+            }
+          }
         };
 
-        // 连接 WebSocket
-        const connectWebSocket = () => {
-            // 获取当前页面的主机名和端口，避免硬编码
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
-            socket = new WebSocket(wsUrl);
-
-            socket.onopen = () => {
-                log('✅ WebSocket 连接成功');
-                setStatus('已连接');
-            };
-
-            socket.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                if (msg.type === "vad_result") {
-                    console.log("新语音片段:", msg.segments); // [[0, 1200], [2500, 4000]]
-                    if (!msg.is_active) {
-                        console.log("说话结束，可以触发 ASR");
-                    }
-                }
-            };
-
-            socket.onerror = (error) => {
-                log(`❌ WebSocket 错误: ${error.message}`);
-                setStatus('连接失败');
-            };
-
-            socket.onclose = () => {
-                log('🔌 WebSocket 已断开');
-                setStatus('已断开');
-            };
+        socket.onerror = (error) => {
+          log(`❌ WebSocket 错误: ${error.message}`);
+          setStatus("连接失败");
         };
 
-        // 开始录音
-        document.getElementById('startBtn').onclick = async () => {
-            try {
-                // 1. 连接 WebSocket
-                if (!socket || socket.readyState !== WebSocket.OPEN) {
-                    connectWebSocket();
-                    // 等待连接建立
-                    await new Promise(r => setTimeout(r, 500));
-                }
-
-                // 2. 请求麦克风权限
-                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioContext =  new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: 16000  // ←←← 必须！    
-                });
-                const source = audioContext.createMediaStreamSource(mediaStream);
-
-                // 3. 创建脚本处理器（每 4096 个采样点回调一次）
-                processor = audioContext.createScriptProcessor(4096, 1, 1);
-                processor.onaudioprocess = (e) => {
-                    const input = e.inputBuffer.getChannelData(0); // Float32Array, -1.0 ~ +1.0
-                    // 发送音频数据（转为普通数组以便 JSON 序列化）
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({
-                            type: "audio",
-                            data: Array.from(input)  // 转为普通数组
-                        }));
-                    }
-                };
-
-                source.connect(processor);
-                processor.connect(audioContext.destination);
-
-                // 4. 发送开始信号
-                socket.send(JSON.stringify({ type: "start" }));
-
-                // 启用/禁用按钮
-                document.getElementById('startBtn').disabled = true;
-                document.getElementById('stopBtn').disabled = false;
-                setStatus('录音中...');
-
-            } catch (err) {
-                log(`❌ 录音失败: ${err.message}`);
-            }
+        socket.onclose = () => {
+          log("🔌 WebSocket 已断开");
+          setStatus("已断开");
         };
+      };
 
-        // 停止录音
-        document.getElementById('stopBtn').onclick = () => {
-            if (processor) {
-                processor.disconnect();
+      // 开始录音
+      document.getElementById("startBtn").onclick = async () => {
+        try {
+          // 1. 连接 WebSocket
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            connectWebSocket();
+            // 等待连接建立
+            await new Promise((r) => setTimeout(r, 500));
+          }
+
+          // 2. 请求麦克风权限
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          audioContext = new (window.AudioContext || window.webkitAudioContext)(
+            {
+              sampleRate: 16000, // ←←← 必须！
             }
-            if (audioContext) {
-                audioContext.close();
+          );
+          const source = audioContext.createMediaStreamSource(mediaStream);
+
+          // 3. 创建脚本处理器（每 4096 个采样点回调一次）
+          processor = audioContext.createScriptProcessor(4096, 1, 1);
+          processor.onaudioprocess = (e) => {
+            const input = e.inputBuffer.getChannelData(0); // Float32Array, -1.0 ~ +1.0
+
+            // === 关键修复：截断音频为160的倍数 ===
+            const validLength = Math.floor(input.length / 160) * 160;
+            const validAudio = input.slice(0, validLength);
+            
+            // 打印调试信息（显示原始长度和截断后长度）
+            console.log(`[音频处理] 原始长度: ${input.length}, 截断后长度: ${validLength}`);
+            
+            // 计算音频能量
+            const max = Math.max(...validAudio.map(Math.abs));
+            console.log("🎤 麦克风幅值:", max.toFixed(4)); // 正常说话应 > 0.1
+
+            // 发送音频数据（转为普通数组以便 JSON 序列化）
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              if (max > 0.5) {
+                console.log("🔊 大声说话！发送音频 max =", max);
+                console.log("前10个样本:", validAudio.slice(0, 10));
+                console.log("音频长度:", validAudio.length);
+              }
+              socket.send(
+                JSON.stringify({ type: "audio", data: Array.from(validAudio) })
+              );
             }
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-            }
-            if (socket) {
-                socket.send(JSON.stringify({ type: "stop" }));
-            }
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
-            setStatus('已停止');
-        };
+          };
+
+          source.connect(processor);
+          processor.connect(audioContext.destination);
+
+          // 启用/禁用按钮
+          document.getElementById("startBtn").disabled = true;
+          document.getElementById("stopBtn").disabled = false;
+          setStatus("录音中...");
+        } catch (err) {
+          log(`❌ 录音失败: ${err.message}`);
+        }
+      };
+
+      // 停止录音
+      document.getElementById("stopBtn").onclick = () => {
+        if (processor) {
+          processor.disconnect();
+        }
+        if (audioContext) {
+          audioContext.close();
+        }
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+        }
+        if (socket) {
+          socket.send(JSON.stringify({ type: "stop" }));
+        }
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled = true;
+        setStatus("已停止");
+      };
     </script>
-</body>
+  </body>
 </html>

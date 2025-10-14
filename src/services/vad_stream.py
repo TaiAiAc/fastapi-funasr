@@ -1,81 +1,87 @@
 import numpy as np
-from typing import List, Dict, Any
+from typing import List
+from ..common import VADState
 
 class VADStream:
     def __init__(self, model):
+        """初始化VAD流处理器"""
         self.model = model
         self.reset()
 
     def reset(self):
         """重置流状态"""
-        self.cache: Dict[str, Any] = {}
+        self.cache = {}
         self.total_samples = 0
-        self.segments_buffer: List[List[int]] = []
+        self.chunk_size = 200
+        self._last_vad_state = 0
 
     def process(self, audio_chunk: np.ndarray) -> List[List[int]]:
         """
-        处理一段音频块（16kHz, float32, shape=(N,)）
-        返回本次新增的语音片段（单位：毫秒）
+        处理音频块（流式VAD中间步骤，通常不返回语音段）
         """
-        if audio_chunk.ndim != 1:
-            raise ValueError("audio_chunk 必须是 1D 数组")
+        if len(audio_chunk) == 0:
+            return []
+
+        # 确保音频在 [-1, 1] 范围内（FunASR 要求）
         if audio_chunk.dtype != np.float32:
             audio_chunk = audio_chunk.astype(np.float32)
+        if np.abs(audio_chunk).max() > 1.0:
+            # 自动归一化（可选，根据你的数据源决定）
+            audio_chunk = audio_chunk / np.max(np.abs(audio_chunk))
 
-        # 调用流式 VAD
+        # 流式推理：is_final=False
         result = self.model.generate(
             input=audio_chunk,
-            cache=self.cache,  # 关键：传入并更新状态
-            param_dict={
-                "vad_streaming": True,        # 启用流式模式
-                "return_vad_result": True,    # 返回 VAD 结果而非文本
-            }
+            cache=self.cache,
+            chunk_size=self.chunk_size,      # 毫秒
+            is_final=False
         )
 
-        new_segments = []
-        if result and isinstance(result, list) and len(result) > 0:
-            vad_output = result[0]
-            if isinstance(vad_output, dict) and "value" in vad_output:
-                # value 是 [[start_sample, end_sample], ...]
-                for seg in vad_output["value"]:
-                    start_ms = int(seg[0] / 16000 * 1000)
-                    end_ms = int(seg[1] / 16000 * 1000)
-                    new_segments.append([start_ms, end_ms])
-                    self.segments_buffer.append([start_ms, end_ms])
+        # 注意：fsmn-vad 在 is_final=False 时通常返回空列表！
+        segments_ms = result[0].get("value", [])
+        self._last_vad_state = 1 if segments_ms else 0
 
+        # 更新总采样点（用于估算时长）
         self.total_samples += len(audio_chunk)
-        return new_segments
+
+        # 调试打印
+        if segments_ms:
+            print(f"🟡 process() 中检测到段（罕见）: {segments_ms}")
+        return segments_ms  # 通常为空
+
+    def finish(self) -> List[List[int]]:
+        """
+        结束流式处理，获取最终语音段列表（毫秒）
+        """
+        # 发送空输入 + is_final=True 触发最终输出
+        result = self.model.generate(
+            input=np.array([], dtype=np.float32),
+            cache=self.cache,
+            chunk_size=self.chunk_size,
+            is_final=True
+        )
+
+        segments_ms = result[0].get("value", [])
+        self._last_vad_state = 1 if segments_ms else 0
+
+        # 安全过滤：确保 start < end，且时间合理
+        filtered_segments = []
+        estimated_duration_ms = int(self.total_samples / 16.0)  # 16kHz
+
+        for start, end in segments_ms:
+            if isinstance(start, (int, float)) and isinstance(end, (int, float)):
+                start, end = int(start), int(end)
+                if 0 <= start < end <= estimated_duration_ms + 1000:  # 容忍1秒误差
+                    filtered_segments.append([start, end])
+                else:
+                    print(f"⚠️ 跳过异常段: [{start}, {end}], 音频估计时长: {estimated_duration_ms}ms")
+            else:
+                print(f"⚠️ 跳过非数值段: {start}, {end}")
+
+        return filtered_segments
 
     def is_speech_active(self) -> bool:
-        """
-        判断当前是否处于“语音活动”状态（即尾部静音未超时）
-        在 FunASR 1.2.7 中，可通过 cache 是否包含 'vad_state' 判断
-        """
-        # 检查 cache 中是否有活跃状态
-        vad_cache = self.cache.get("vad_cache", {})
-        state = vad_cache.get("vad_state", {})
-        # 如果 last_vad_state == 1 表示正在说话或刚结束（未超时）
-        return state.get("last_vad_state", 0) == 1
-    
-    def get_voice_state(self) -> str:
-        """
-        返回当前语音状态：
-        - "silence": 静音
-        - "voice_start": 刚开始说话（关键！）
-        - "speaking": 正在说话中
-        - "voice_end": 刚结束说话
-        """
-        vad_cache = self.cache.get("vad_cache", {})
-        state = vad_cache.get("vad_state", {})
-        last_state = state.get("last_vad_state", 0)  # 0=静音, 1=语音
-        cur_state = state.get("cur_vad_state", 0)
+        return self._last_vad_state == 1
 
-        # 关键：检测状态跳变
-        if last_state == 0 and cur_state == 1:
-            return "voice_start"
-        elif last_state == 1 and cur_state == 0:
-            return "voice_end"
-        elif cur_state == 1:
-            return "speaking"
-        else:
-            return "silence"
+    def get_voice_state(self) -> VADState:
+        return VADState.SPEAKING if self._last_vad_state == 1 else VADState.IDLE

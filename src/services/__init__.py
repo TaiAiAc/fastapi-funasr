@@ -13,6 +13,8 @@ from .vad import (
     preload_vad_model
 )
 
+from .vad_stream import VADStream
+
 # 从kws模块导入KWS服务类和实例
 from .kws import (
     KWSService,
@@ -29,6 +31,7 @@ from .asr import (
 
 # 定义__all__列表，控制模块导出内容
 __all__ = [
+    'VADStream',
     "VADService",
     "vad_service",
     "preload_vad_model",

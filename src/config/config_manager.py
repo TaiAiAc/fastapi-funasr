@@ -6,11 +6,13 @@ from threading import Lock
 
 logger = logging.getLogger(__name__)
 
+
 class ConfigManager:
     """
     配置管理器类，使用严格的单例模式实现
     负责加载、解析和提供配置，确保配置只在服务启动时加载一次
     """
+
     # 类变量保存单例实例
     _instance = None
     # 线程锁，确保线程安全
@@ -32,12 +34,12 @@ class ConfigManager:
                 # 初始化配置字典
                 self._config: Dict[str, Any] = {}
                 self._loaded_files: set = set()
-                
+
                 # 从配置文件加载配置
-                config_file = os.getenv('APP_CONFIG_FILE', 'config.yaml')
+                config_file = os.getenv("APP_CONFIG_FILE", "config.yaml")
                 if os.path.exists(config_file):
                     self.load_config_file(config_file)
-                
+
                 # 标记配置已加载
                 self.__class__._config_loaded = True
                 logger.info("配置管理器初始化完成，所有配置已加载")
@@ -45,25 +47,25 @@ class ConfigManager:
     def load_config_file(self, file_path: str) -> bool:
         """
         从YAML配置文件加载配置
-        
+
         Args:
             file_path: 配置文件路径
-        
+
         Returns:
             bool: 是否加载成功
         """
         if not os.path.exists(file_path):
             logger.warning(f"配置文件不存在: {file_path}")
             return False
-            
+
         if file_path in self._loaded_files:
             logger.warning(f"配置文件已加载: {file_path}")
             return False
-        
+
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 config_data = yaml.safe_load(f)
-                
+
             if config_data:
                 self._merge_config(self._config, config_data)
                 self._loaded_files.add(file_path)
@@ -76,16 +78,22 @@ class ConfigManager:
             logger.error(f"加载配置文件失败: {file_path}, 错误: {str(e)}")
             return False
 
-    def _merge_config(self, base_config: Dict[str, Any], new_config: Dict[str, Any]) -> None:
+    def _merge_config(
+        self, base_config: Dict[str, Any], new_config: Dict[str, Any]
+    ) -> None:
         """
         合并配置，新配置会覆盖旧配置
-        
+
         Args:
             base_config: 基础配置
             new_config: 新配置
         """
         for key, value in new_config.items():
-            if key in base_config and isinstance(base_config[key], dict) and isinstance(value, dict):
+            if (
+                key in base_config
+                and isinstance(base_config[key], dict)
+                and isinstance(value, dict)
+            ):
                 # 递归合并嵌套字典
                 self._merge_config(base_config[key], value)
             else:
@@ -95,17 +103,17 @@ class ConfigManager:
     def get(self, key: str, default: Any = None) -> Any:
         """
         获取配置项，支持点号分隔的嵌套键
-        
+
         Args:
             key: 配置键，如'app.log_level'或'vad.model_name'
             default: 默认值
-        
+
         Returns:
             Any: 配置值或默认值
         """
-        parts = key.split('.')
+        parts = key.split(".")
         value = self._config
-        
+
         try:
             for part in parts:
                 if isinstance(value, dict) and part in value:
@@ -118,19 +126,19 @@ class ConfigManager:
 
     def get_app_config(self) -> Dict[str, Any]:
         """获取应用配置"""
-        return self._config.get('app', {})
+        return self._config.get("app", {})
 
     def get_vad_config(self) -> Dict[str, Any]:
         """获取VAD服务配置"""
-        return self._config.get('vad', {})
+        return self._config.get("vad", {})
 
     def get_kws_config(self) -> Dict[str, Any]:
         """获取KWS服务配置"""
-        return self._config.get('kws', {})
+        return self._config.get("kws", {})
 
     def get_asr_config(self) -> Dict[str, Any]:
         """获取ASR服务配置"""
-        return self._config.get('asr', {})
+        return self._config.get("asr", {})
 
     def get_all_config(self) -> Dict[str, Any]:
         """获取所有配置"""

@@ -16,6 +16,7 @@ dependencies = [
     "torchaudio==2.1.0",
     "funasr>=1.2.7,<1.4.0",  # 👈 暂时锁定版本（见第二步）
     "soundfile>=0.13.1",
+    "pydub>=0.25.1",
 ]
 requires-python = ">=3.10"
 readme = "README.md"
