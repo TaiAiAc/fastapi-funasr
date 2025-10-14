@@ -10,8 +10,8 @@ vad:
   device: "auto"
   # 可以在这里添加更多VAD相关配置
   params:
-    max_end_silence_time: 800    # 尾部静音超时（ms）
-    speech_noise_thres: 0.3      # 语音/噪音阈值（0~1）
+    max_end_silence_time: 300    # 尾部静音超时（ms）
+    speech_noise_thres: 0.4     # 语音/噪音阈值（0~1）
 
 # KWS 服务配置
 kws:

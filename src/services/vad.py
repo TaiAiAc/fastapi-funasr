@@ -69,7 +69,10 @@ class VADService:
             self._model = AutoModel(
                 model=model_name,  # 模型名称（官方支持的）
                 model_revision=model_revision,  # 推荐使用最新 revision
-                # device=self._device,  # 或 "cuda"
+                device=self._device,  # 或 "cuda"
+                disable_pbar=True,
+                disable_log=True,
+                **model_params,
                 # 可选参数
                 # max_end_silence_time=300,  # ✅ 从800ms → 300ms（更敏感）
                 # speech_noise_thres=0.15,  # 保持合理阈值
@@ -100,15 +103,22 @@ class VADService:
             "device": self._device,
         }
 
-    def create_stream(self):
+    def create_stream(
+        self, max_end_silence_time: int = 800, speech_noise_thres: float = 0.8
+    ):
         """创建一个新的流式会话（每个说话人/会话一个）"""
         if not self._initialized:
             raise RuntimeError("VAD模型未初始化")
-        return VADStream(self._model)
+        return VADStream(
+            self._model,
+            max_end_silence_time=max_end_silence_time,
+            speech_noise_thres=speech_noise_thres,
+        )
 
 
 # 创建全局VAD服务实例
 vad_service = VADService()
+
 
 def preload_vad_model() -> bool:
     """

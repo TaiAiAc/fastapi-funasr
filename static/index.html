@@ -60,12 +60,54 @@
         };
 
         socket.onmessage = (event) => {
-          const msg = JSON.parse(event.data);
-          if (msg.type === "vad_result") {
-            console.log("新语音片段:", msg.segments); // [[0, 1200], [2500, 4000]]
-            if (!msg.is_active) {
-              console.log("说话结束，可以触发 ASR");
+          try {
+            const msg = JSON.parse(event.data);
+            
+            // 根据消息类型进行处理和展示
+            if (msg.type === "vad_result") {
+              log(`🎯 语音片段: ${JSON.stringify(msg.segments)}`);
+              if (!msg.is_active) {
+                log(`🔊 说话结束，可以触发 ASR`);
+              }
+            } 
+            // VAD 事件处理（人声开始/结束）
+            else if (msg.type === "vad_event") {
+              if (msg.event === "voice_start") {
+                log(`🎤 <span style="color: green;">检测到人声开始</span>`);
+                setStatus("检测到人声...");
+              } else if (msg.event === "voice_end") {
+                log(`🔇 <span style="color: blue;">检测到人声结束</span>`);
+                setStatus("处理中...");
+              }
             }
+            // 状态消息处理
+            else if (msg.status === "started") {
+              log(`✅ ${msg.message}`);
+              setStatus("开始接收音频");
+            } else if (msg.status === "stopped") {
+              log(`✅ ${msg.message}`);
+              setStatus("识别结束");
+            }
+            // 信息消息处理
+            else if (msg.type === "info") {
+              log(`ℹ️ ${msg.message}`);
+            }
+            // 警告消息处理
+            else if (msg.type === "warning") {
+              log(`⚠️ <span style="color: orange;">${msg.message}</span>`);
+              setStatus("警告状态");
+            }
+            // 错误消息处理
+            else if (msg.type === "error") {
+              log(`❌ <span style="color: red;">${msg.message}</span>`);
+              setStatus("错误状态");
+            }
+            // 未处理的消息类型
+            else {
+              log(`📩 收到未知类型消息: ${JSON.stringify(msg)}`);
+            }
+          } catch (e) {
+            log(`❌ 解析消息失败: ${event.data}`);
           }
         };
 

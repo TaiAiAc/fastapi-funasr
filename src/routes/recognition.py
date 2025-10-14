@@ -10,6 +10,7 @@ import time
 import os
 import uuid  # 用于生成唯一文件名
 from pydub import AudioSegment  # 导入pydub库
+from ..utils import AudioConverter
 
 # 创建语音识别相关的路由器
 recognition_router = APIRouter(
@@ -24,7 +25,7 @@ async def analyze_voice(
     sample_rate: Optional[int] = Form(16000),
     max_end_silence_time: Optional[int] = Form(300),
     speech_noise_thres: Optional[float] = Form(0.1),  # 降低阈值，提高敏感度
-    save_processed_audio: Optional[bool] = Form(True)
+    save_processed_audio: Optional[bool] = Form(False)
 ):
     """
     上传音频文件并分析人声
@@ -83,7 +84,6 @@ async def analyze_voice(
                     sr = sample_rate
                     info(f"使用pydub处理成功，采样率: {sr}Hz, 音频长度: {len(data)}样本")
                     valid_length = len(data) * 1000 / sr  # 转换为毫秒
-                    print(f"音频时长: {valid_length/16000:.2f} 秒")
                     info(f"音频数据范围: [{data.min():.6f}, {data.max():.6f}]")  # 添加范围日志
                 else:
                     raise sf_error
@@ -117,8 +117,22 @@ async def analyze_voice(
                 content={"success": False, "error": f"音频文件格式错误: {str(e)}"}
             )
         
+            # === 音频加载完成，统一转换为 int16 用于 VAD ===
+        
+        try:
+            vad_data = AudioConverter.to_int16(data)  # ✅ 一行搞定！
+        except Exception as e:
+            error(f"音频格式转换失败: {e}")
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": f"音频格式不支持: {str(e)}"}
+            )
+
         # 创建VAD流进行分析
-        vad_stream = vad_service.create_stream()
+        vad_stream = vad_service.create_stream(
+            max_end_silence_time=max_end_silence_time,
+            speech_noise_thres=speech_noise_thres,
+        )
         
         # 准备分析参数
         analyze_params = {
@@ -130,17 +144,18 @@ async def analyze_voice(
         # 测量分析时间
         start_time = time.time()
         
-        # 将音频分割成小块进行处理
-        audio_chunk_samples = 160 * 10 *  2  
         all_segments = []
         
-        for i in range(0, len(data), audio_chunk_samples):
-            chunk = data[i:i+audio_chunk_samples]
-            # 确保块长度是160的倍数
-            valid_length = (len(chunk) // 160) * 160
-            if valid_length > 0:
-                chunk = chunk[:valid_length]
-                vad_stream.process(chunk)  # 不再收集返回值，直接处理
+        # 将音频分割成小块进行处理
+        chunk_samples = int(vad_stream.chunk_duration_ms * sample_rate / 1000)  # 600ms → 9600
+
+        for i in range(0, len(vad_data), chunk_samples):
+            chunk = vad_data[i:i + chunk_samples]
+            # ✅ Padding 到 160 的整数倍（FunASR 要求）
+            remainder = len(chunk) % 160
+            if remainder != 0:
+                chunk = np.pad(chunk, (0, 160 - remainder), mode='constant')
+            vad_stream.process(chunk)
         
         # 关键：调用 finish() 处理残留语音段
         all_segments = vad_stream.finish()
