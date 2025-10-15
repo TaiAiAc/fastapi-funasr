@@ -81,7 +81,8 @@ class Logger:
             cls._logger.handlers.clear()
         
         # 设置日志级别
-        cls._logger.setLevel(logging.DEBUG)
+        log_level = os.getenv("APP_LOG_LEVEL", "DEBUG")
+        cls._logger.setLevel(log_level)
         
         # 设置日志格式
         log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

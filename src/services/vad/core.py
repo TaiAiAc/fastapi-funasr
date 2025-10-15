@@ -1,7 +1,9 @@
+# src\services\vad\core.py
+
 import time
 from typing import Dict, Any, List
-from ...utils import info, error
-from .stream import VADStream
+from ...utils import debug, info, error
+from .streaming import StreamingVADService
 from ...config import config_manager
 import torch
 from funasr import AutoModel
@@ -107,7 +109,7 @@ class VADService:
         """创建一个新的流式会话（每个说话人/会话一个）"""
         if not self._initialized:
             raise RuntimeError("VAD模型未初始化")
-        return VADStream(
+        return StreamingVADService(
             self._model,
             max_end_silence_time=max_end_silence_time,
             speech_noise_thres=speech_noise_thres,

@@ -1,3 +1,5 @@
+# src\services\asr\core.py
+
 import os
 import time
 import torch
@@ -6,11 +8,13 @@ from funasr import AutoModel
 from ...utils import logger, info, error, debug
 from ...config import config_manager
 
+
 class ASRService:
     """
     自动语音识别(ASR)服务类，基于Paraformer模型实现
     使用单例模式确保模型只被加载一次
     """
+
     _instance = None
     _model = None
     _initialized = False
@@ -38,9 +42,9 @@ class ASRService:
             info("开始初始化ASR模型...")
 
             # 可以从环境变量或配置文件读取模型参数
-            model_name = config_manager.get_asr_config().get('model_name')
-            model_revision = config_manager.get_asr_config().get('model_revision')
-            device_config = config_manager.get_asr_config().get('device').lower()
+            model_name = config_manager.get_asr_config().get("model_name")
+            model_revision = config_manager.get_asr_config().get("model_revision")
+            device_config = config_manager.get_asr_config().get("device").lower()
 
             if device_config == "auto":
                 # 自动检测GPU可用性
@@ -95,10 +99,10 @@ class ASRService:
     def transcribe(self, audio_data) -> str:
         """
         将音频数据转换为文本
-        
+
         Args:
             audio_data: 音频数据，可以是numpy数组或文件路径
-        
+
         Returns:
             str: 转换后的文本结果，如果转换失败则返回空字符串
         """
@@ -109,8 +113,9 @@ class ASRService:
             # 如果是 bytes，尝试解析为 numpy array
             if isinstance(audio_data, bytes):
                 import io, soundfile as sf
+
                 audio_file = io.BytesIO(audio_data)
-                data, sr = sf.read(audio_file, dtype='float32')
+                data, sr = sf.read(audio_file, dtype="float32")
                 if sr != 16000:
                     error("音频采样率非16kHz，ASR结果可能不准确")
                 if data.ndim > 1:
@@ -120,7 +125,7 @@ class ASRService:
             start_time = time.time()
             result = self._model.generate(input=audio_data)
             process_time = time.time() - start_time
-            
+
             if result and len(result) > 0:
                 text = result[0].get("text", "").strip()
                 info(f"ASR识别结果: {text}，处理时间: {process_time:.4f}秒")
@@ -130,20 +135,37 @@ class ASRService:
             error(f"语音识别失败: {e}")
             return ""
 
-# 创建全局ASR服务实例
-asr_service = ASRService()
+
+# 创建获取ASR服务实例的函数
+def get_asr_service() -> ASRService:
+    """
+    获取ASR服务实例（懒加载模式）
+    只有在首次调用此函数时才会初始化模型，避免模块导入时的资源消耗
+
+    Returns:
+        ASRService: 单例的ASR服务实例
+    """
+    # 检查是否已初始化
+    if not hasattr(get_asr_service, "_instance"):
+        # 首次调用时创建实例
+        get_asr_service._instance = ASRService()
+    return get_asr_service._instance
+
 
 def preload_asr_model() -> bool:
     """
     预加载ASR模型
-    
+
     Returns:
         bool: 预加载是否成功
     """
     try:
+        # 使用新的get_asr_service函数获取实例
+        service = get_asr_service()
         # 强制初始化模型
-        asr_service.__init__()
-        return asr_service.is_initialized()
+        if not service.is_initialized():
+            service._initialize_model()
+        return service.is_initialized()
     except Exception as e:
         error(f"预加载ASR模型失败: {e}")
         return False

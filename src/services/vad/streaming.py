@@ -1,7 +1,10 @@
+# src\services\vad\stream.py
+
 from typing import List
 import numpy as np
+from ...utils import debug
 
-class VADStream:
+class StreamingVADService:
     """
     FunASR VAD 流式处理器，支持实时语音活动检测与离线分析。
     正确处理流式返回的 [-1, end] / [start, -1] 段。
@@ -70,7 +73,7 @@ class VADStream:
         if segments_ms:
             self._accumulated_raw_segments.extend(segments_ms)
 
-        print(f"VAD 输出原始段: {segments_ms}")
+        debug(f"VAD 输出原始段: {segments_ms}")
 
         return segments_ms
 

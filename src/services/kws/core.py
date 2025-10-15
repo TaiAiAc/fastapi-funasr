@@ -1,3 +1,5 @@
+# src\services\kws\core.py
+
 import os
 import time
 import torch
@@ -125,8 +127,21 @@ class KWSService:
             error(f"关键词检测失败: {e}")
             return None
 
-# 创建全局KWS服务实例
-kws_service = KWSService()
+
+# 创建获取KWS服务实例的函数
+def get_kws_service() -> KWSService:
+    """
+    获取KWS服务实例（懒加载模式）
+    只有在首次调用此函数时才会初始化模型，避免模块导入时的资源消耗
+    
+    Returns:
+        KWSService: 单例的KWS服务实例
+    """
+    # 检查是否已初始化
+    if not hasattr(get_kws_service, '_instance'):
+        # 首次调用时创建实例
+        get_kws_service._instance = KWSService()
+    return get_kws_service._instance
 
 def preload_kws_model() -> bool:
     """
@@ -136,9 +151,12 @@ def preload_kws_model() -> bool:
         bool: 预加载是否成功
     """
     try:
+        # 使用新的get_kws_service函数获取实例
+        service = get_kws_service()
         # 强制初始化模型
-        kws_service.__init__()
-        return kws_service.is_initialized()
+        if not service.is_initialized():
+            service._initialize_model()
+        return service.is_initialized()
     except Exception as e:
         error(f"预加载KWS模型失败: {e}")
         return False

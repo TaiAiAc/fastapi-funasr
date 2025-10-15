@@ -1,7 +1,7 @@
-from .core import KWSService, kws_service, preload_kws_model
+from .core import KWSService, get_kws_service, preload_kws_model
 
 __all__ = [
     'KWSService',
-    'kws_service',
+    'get_kws_service',
     'preload_kws_model'
 ]

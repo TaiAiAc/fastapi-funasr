@@ -1,6 +1,7 @@
-from .states import VADState,KWSState,ASRState
+from .states import InteractionState, VADState, KWSState, ASRState
 
 __all__ = [
+    'InteractionState',
     'VADState',
     'KWSState',
     'ASRState',
