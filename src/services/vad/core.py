@@ -1,18 +1,16 @@
-import os
 import time
-from typing import Dict, Any, List, Tuple
-from ..utils import logger, info, error, debug
-from typing import List
-from .vad_stream import VADStream
-from ..config import config_manager
+from typing import Dict, Any, List
+from ...utils import info, error
+from .stream import VADStream
+from ...config import config_manager
 import torch
 from funasr import AutoModel
 
-
 class VADService:
     """
-    语音端点检测(VAD)服务类，基于FSMN模型实现
+    语音端点检测(Voice Activity Detection, VAD)服务类，基于FSMN模型实现
     使用单例模式确保模型只被加载一次
+    提供模型管理和流式会话创建功能
     """
 
     _instance = None

@@ -1,8 +1,5 @@
-# services/vad_stream.py
-
-import numpy as np
 from typing import List
-
+import numpy as np
 
 class VADStream:
     """
@@ -72,6 +69,8 @@ class VADStream:
 
         if segments_ms:
             self._accumulated_raw_segments.extend(segments_ms)
+
+        print(f"VAD 输出原始段: {segments_ms}")
 
         return segments_ms
 

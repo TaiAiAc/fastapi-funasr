@@ -2,7 +2,7 @@ from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from typing import Optional
 from ..utils import logger, info, error  # 使用统一的日志工具
-from ..services.vad import vad_service  # 导入VAD服务
+from ..services import vad_service  # 导入VAD服务
 import soundfile as sf
 import numpy as np
 import io

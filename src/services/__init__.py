@@ -1,6 +1,3 @@
-# services模块初始化文件
-# 用于存放各种业务服务实现
-
 """
 服务层模块，包含各种业务逻辑的实现
 为路由层提供统一的服务接口
@@ -10,10 +7,8 @@
 from .vad import (
     VADService,
     vad_service,
-    preload_vad_model
+    preload_vad_model,VADStream
 )
-
-from .vad_stream import VADStream
 
 # 从kws模块导入KWS服务类和实例
 from .kws import (
@@ -35,8 +30,10 @@ __all__ = [
     "VADService",
     "vad_service",
     "preload_vad_model",
+    "KWSService",
     "kws_service",
     "preload_kws_model",
+    "ASRService",   
     "asr_service",
     "preload_asr_model",
 ]

@@ -6,8 +6,7 @@ from fastapi import APIRouter, WebSocket
 
 from ..common import VADState
 from ..utils import info, error
-from ..services.vad import vad_service
-from ..services.vad_stream import VADStream
+from ..services import vad_service,VADStream
 from ..utils.audio_converter import AudioConverter
 
 # 创建WebSocket相关的路由器
@@ -46,7 +45,7 @@ async def websocket_asr(websocket: WebSocket):
             )
             info("WebSocket连接建立但VAD模型未初始化")
         else:
-            stream = vad_service.create_stream()
+            stream = vad_service.create_stream(max_end_silence_time=1500)
             active_streams[session_id] = stream
             audio_buffers[session_id] = []
             session_states[session_id] = VADState.IDLE
@@ -58,6 +57,8 @@ async def websocket_asr(websocket: WebSocket):
             if msg_type == "start":
                 session_states[session_id] = VADState.IDLE
                 audio_buffers[session_id] = []
+                if stream:
+                    stream.reset()  # 重置 VAD 内部状态
                 await websocket.send_text(
                     json.dumps({"status": "started", "message": "开始接收音频"})
                 )
@@ -88,8 +89,9 @@ async def websocket_asr(websocket: WebSocket):
                     is_speaking = stream.is_speech_active()
                     current_state = session_states.get(session_id, VADState.IDLE)
 
+                    info(f"会话 {session_id} 当前状态: {current_state}, 说话状态: {is_speaking}")
                     # === 状态机逻辑 ===
-                    if current_state == VADState.IDLE and is_speaking:
+                    if (current_state in (VADState.IDLE, VADState.VOICE_END)) and is_speaking:
                         # 开始说话
                         audio_buffers[session_id] = [audio_chunk]
                         session_states[session_id] = VADState.SPEAKING

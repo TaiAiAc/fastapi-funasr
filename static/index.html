@@ -1,4 +1,3 @@
-<!-- static/index.html -->
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
@@ -8,26 +7,122 @@
       body {
         font-family: Arial, sans-serif;
         padding: 20px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      h1 {
+        text-align: center;
+      }
+      .controls {
+        text-align: center;
+        margin-bottom: 20px;
       }
       button {
         padding: 10px 20px;
         font-size: 16px;
         margin: 5px;
+        cursor: pointer;
+        border-radius: 4px;
+        border: none;
+        background-color: #4CAF50;
+        color: white;
+        transition: background-color 0.3s;
+      }
+      button:hover:not(:disabled) {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      #clearBtn {
+        background-color: #f44336;
+      }
+      #clearBtn:hover {
+        background-color: #d32f2f;
+      }
+      #status {
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 15px;
+        padding: 8px;
+        background-color: #f0f0f0;
+        border-radius: 4px;
+      }
+      #progressContainer {
+        width: 100%;
+        height: 20px;
+        background-color: #f0f0f0;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        overflow: hidden;
+      }
+      #progressBar {
+        height: 100%;
+        width: 0%;
+        background-color: #4CAF50;
+        transition: width 0.3s ease;
+      }
+      #volumeIndicator {
+        width: 100%;
+        height: 60px;
+        background-color: #f8f8f8;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 10px 0;
+        position: relative;
+      }
+      .volumeBar {
+        width: 4px;
+        background-color: #ddd;
+        margin: 0 2px;
+        border-radius: 2px;
+        transition: height 0.1s, background-color 0.3s;
+      }
+      .volumeBar.active {
+        background-color: #4CAF50;
       }
       #log {
-        margin-top: 20px;
-        padding: 10px;
+        padding: 15px;
         background: #f0f0f0;
-        height: 200px;
+        height: 300px;
         overflow-y: auto;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .timestamp {
+        color: #666;
+        font-weight: normal;
       }
     </style>
   </head>
   <body>
     <h1>🎤 FunASR 实时语音识别</h1>
-    <button id="startBtn">开始录音</button>
-    <button id="stopBtn" disabled>停止录音</button>
+    
+    <div class="controls">
+      <button id="startBtn">开始录音</button>
+      <button id="stopBtn" disabled>停止录音</button>
+      <button id="clearBtn">清除日志</button>
+    </div>
+    
     <div id="status">状态：未连接</div>
+    
+    <!-- 进度指示器 -->
+    <div id="progressContainer">
+      <div id="progressBar"></div>
+    </div>
+    
+    <!-- 语音活动可视化 -->
+    <div id="volumeIndicator">
+      <!-- 音量条将通过JavaScript动态生成 -->
+    </div>
+    
+    <!-- 日志区域 -->
     <div id="log"></div>
 
     <script>
@@ -35,28 +130,92 @@
       let audioContext = null;
       let processor = null;
       let mediaStream = null;
+      let isSpeaking = false;
+      let startTime = null;
+      let volumeBars = [];
+      const NUM_VOLUME_BARS = 30; // 音量条数量
 
+      // 初始化音量指示器
+      function initVolumeIndicator() {
+        const container = document.getElementById('volumeIndicator');
+        container.innerHTML = '';
+        volumeBars = [];
+        
+        for (let i = 0; i < NUM_VOLUME_BARS; i++) {
+          const bar = document.createElement('div');
+          bar.className = 'volumeBar';
+          bar.style.height = '0px';
+          container.appendChild(bar);
+          volumeBars.push(bar);
+        }
+      }
+
+      // 更新音量指示器
+      function updateVolumeIndicator(volume) {
+        // 计算音量条高度（0-100%）
+        const barHeight = Math.min(volume * 100, 100);
+        
+        // 更新音量条
+        volumeBars.forEach((bar, index) => {
+          // 波浪效果：使不同位置的音量条有不同的高度变化
+          const waveFactor = 0.8 + 0.2 * Math.sin(Date.now() / 300 + index * 0.3);
+          const height = isSpeaking ? barHeight * waveFactor : 0;
+          
+          bar.style.height = `${height}%`;
+          bar.classList.toggle('active', isSpeaking);
+        });
+      }
+
+      // 更新进度条
+      function updateProgressBar() {
+        if (!startTime) return;
+        
+        const now = new Date().getTime();
+        const elapsed = now - startTime;
+        // 每60秒重置一次进度条（或根据实际需求调整）
+        const progress = (elapsed % 60000) / 60000 * 100;
+        document.getElementById('progressBar').style.width = `${progress}%`;
+      }
+
+      // 格式化时间戳
+      function formatTimestamp() {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const milliseconds = String(now.getMilliseconds()).padStart(3, '0').slice(0, 2);
+        return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+      }
+
+      // 日志记录函数
       const log = (msg) => {
-        const logDiv = document.getElementById("log");
-        logDiv.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+        const logDiv = document.getElementById('log');
+        const timestamp = formatTimestamp();
+        logDiv.innerHTML += `<span class="timestamp">[${timestamp}]</span> ${msg}<br>`;
         logDiv.scrollTop = logDiv.scrollHeight;
       };
 
+      // 清除日志
+      const clearLog = () => {
+        document.getElementById('log').innerHTML = '';
+        log('日志已清除');
+      };
+
+      // 设置状态显示
       const setStatus = (msg) => {
-        document.getElementById("status").innerText = `状态：${msg}`;
+        document.getElementById('status').innerText = `状态：${msg}`;
       };
 
       // 连接 WebSocket
       const connectWebSocket = () => {
         // 获取当前页面的主机名和端口，避免硬编码
-        const wsProtocol =
-          window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
         socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
-          log("✅ WebSocket 连接成功");
-          setStatus("已连接");
+          log('✅ WebSocket 连接成功');
+          setStatus('已连接');
         };
 
         socket.onmessage = (event) => {
@@ -64,43 +223,53 @@
             const msg = JSON.parse(event.data);
             
             // 根据消息类型进行处理和展示
-            if (msg.type === "vad_result") {
+            if (msg.type === 'vad_result') {
               log(`🎯 语音片段: ${JSON.stringify(msg.segments)}`);
+              isSpeaking = msg.is_active;
               if (!msg.is_active) {
                 log(`🔊 说话结束，可以触发 ASR`);
               }
             } 
             // VAD 事件处理（人声开始/结束）
-            else if (msg.type === "vad_event") {
-              if (msg.event === "voice_start") {
+            else if (msg.type === 'vad_event') {
+              if (msg.event === 'voice_start') {
                 log(`🎤 <span style="color: green;">检测到人声开始</span>`);
-                setStatus("检测到人声...");
-              } else if (msg.event === "voice_end") {
+                isSpeaking = true;
+                setStatus('检测到人声...');
+              } else if (msg.event === 'voice_end') {
                 log(`🔇 <span style="color: blue;">检测到人声结束</span>`);
-                setStatus("处理中...");
+                isSpeaking = false;
+                setStatus('处理中...');
               }
             }
             // 状态消息处理
-            else if (msg.status === "started") {
+            else if (msg.status === 'started') {
               log(`✅ ${msg.message}`);
-              setStatus("开始接收音频");
-            } else if (msg.status === "stopped") {
+              setStatus('开始接收音频');
+              startTime = new Date().getTime();
+              // 开始进度条更新
+              setInterval(updateProgressBar, 100);
+            } else if (msg.status === 'stopped') {
               log(`✅ ${msg.message}`);
-              setStatus("识别结束");
+              setStatus('识别结束');
+              isSpeaking = false;
+              startTime = null;
+              document.getElementById('progressBar').style.width = '0%';
             }
             // 信息消息处理
-            else if (msg.type === "info") {
+            else if (msg.type === 'info') {
               log(`ℹ️ ${msg.message}`);
             }
             // 警告消息处理
-            else if (msg.type === "warning") {
+            else if (msg.type === 'warning') {
               log(`⚠️ <span style="color: orange;">${msg.message}</span>`);
-              setStatus("警告状态");
+              setStatus('警告状态');
             }
             // 错误消息处理
-            else if (msg.type === "error") {
+            else if (msg.type === 'error') {
               log(`❌ <span style="color: red;">${msg.message}</span>`);
-              setStatus("错误状态");
+              setStatus('错误状态');
+              isSpeaking = false;
             }
             // 未处理的消息类型
             else {
@@ -113,17 +282,21 @@
 
         socket.onerror = (error) => {
           log(`❌ WebSocket 错误: ${error.message}`);
-          setStatus("连接失败");
+          setStatus('连接失败');
+          isSpeaking = false;
         };
 
         socket.onclose = () => {
-          log("🔌 WebSocket 已断开");
-          setStatus("已断开");
+          log('🔌 WebSocket 已断开');
+          setStatus('已断开');
+          isSpeaking = false;
+          startTime = null;
+          document.getElementById('progressBar').style.width = '0%';
         };
       };
 
       // 开始录音
-      document.getElementById("startBtn").onclick = async () => {
+      document.getElementById('startBtn').onclick = async () => {
         try {
           // 1. 连接 WebSocket
           if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -136,38 +309,30 @@
           mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
           });
-          audioContext = new (window.AudioContext || window.webkitAudioContext)(
-            {
-              sampleRate: 16000, // ←←← 必须！
-            }
-          );
+          audioContext = new (window.AudioContext || window.webkitAudioContext)({
+            sampleRate: 16000, // ←←← 必须！
+          });
           const source = audioContext.createMediaStreamSource(mediaStream);
 
-          // 3. 创建脚本处理器（每 4096 个采样点回调一次）
+          // 3. 创建脚本处理器
           processor = audioContext.createScriptProcessor(4096, 1, 1);
           processor.onaudioprocess = (e) => {
             const input = e.inputBuffer.getChannelData(0); // Float32Array, -1.0 ~ +1.0
 
-            // === 关键修复：截断音频为160的倍数 ===
+            // 截断音频为160的倍数
             const validLength = Math.floor(input.length / 160) * 160;
             const validAudio = input.slice(0, validLength);
             
-            // 打印调试信息（显示原始长度和截断后长度）
-            console.log(`[音频处理] 原始长度: ${input.length}, 截断后长度: ${validLength}`);
-            
             // 计算音频能量
             const max = Math.max(...validAudio.map(Math.abs));
-            console.log("🎤 麦克风幅值:", max.toFixed(4)); // 正常说话应 > 0.1
+            
+            // 更新音量指示器
+            updateVolumeIndicator(max);
 
-            // 发送音频数据（转为普通数组以便 JSON 序列化）
+            // 发送音频数据
             if (socket && socket.readyState === WebSocket.OPEN) {
-              if (max > 0.5) {
-                console.log("🔊 大声说话！发送音频 max =", max);
-                console.log("前10个样本:", validAudio.slice(0, 10));
-                console.log("音频长度:", validAudio.length);
-              }
               socket.send(
-                JSON.stringify({ type: "audio", data: Array.from(validAudio) })
+                JSON.stringify({ type: 'audio', data: Array.from(validAudio) })
               );
             }
           };
@@ -176,16 +341,16 @@
           processor.connect(audioContext.destination);
 
           // 启用/禁用按钮
-          document.getElementById("startBtn").disabled = true;
-          document.getElementById("stopBtn").disabled = false;
-          setStatus("录音中...");
+          document.getElementById('startBtn').disabled = true;
+          document.getElementById('stopBtn').disabled = false;
+          setStatus('录音中...');
         } catch (err) {
           log(`❌ 录音失败: ${err.message}`);
         }
       };
 
       // 停止录音
-      document.getElementById("stopBtn").onclick = () => {
+      document.getElementById('stopBtn').onclick = () => {
         if (processor) {
           processor.disconnect();
         }
@@ -196,12 +361,19 @@
           mediaStream.getTracks().forEach((track) => track.stop());
         }
         if (socket) {
-          socket.send(JSON.stringify({ type: "stop" }));
+          socket.send(JSON.stringify({ type: 'stop' }));
         }
-        document.getElementById("startBtn").disabled = false;
-        document.getElementById("stopBtn").disabled = true;
-        setStatus("已停止");
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        isSpeaking = false;
+        updateVolumeIndicator(0);
       };
+
+      // 清除日志按钮事件
+      document.getElementById('clearBtn').onclick = clearLog;
+
+      // 页面加载时初始化音量指示器
+      window.onload = initVolumeIndicator;
     </script>
   </body>
 </html>
