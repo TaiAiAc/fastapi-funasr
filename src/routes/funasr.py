@@ -6,7 +6,7 @@ import numpy as np
 from typing import Dict, Optional
 from fastapi import APIRouter, WebSocket
 
-from ..utils import info, error
+from ..utils import debug,info, error
 from ..services import vad_service, VADStateMachine, get_kws_service, get_asr_service
 from ..utils.audio_converter import AudioConverter
 
@@ -96,7 +96,7 @@ async def websocket_asr(websocket: WebSocket):
                 )
             )
         else:
-            stream = vad_service.create_stream(max_end_silence_time=1500)
+            stream = vad_service.create_stream(max_end_silence_time=600,speech_noise_thres=0.8)
 
         # 创建状态机
         sm = VADStateMachine(
@@ -123,16 +123,15 @@ async def websocket_asr(websocket: WebSocket):
                 info("客户端开始发送音频")
 
             elif msg_type == "audio":
-                if stream is None:
-                    await websocket.send_json({"error": "VAD未初始化"})
-                    continue
-
                 try:
                     audio_list = data.get("data")
                     if not isinstance(audio_list, list):
                         raise ValueError("audio data must be a list of floats")
 
                     audio_chunk = np.array(audio_list, dtype=np.float32)
+
+
+
                     if not (
                         -1.0 <= audio_chunk.min() <= 1.0
                         and -1.0 <= audio_chunk.max() <= 1.0
@@ -146,6 +145,12 @@ async def websocket_asr(websocket: WebSocket):
 
                     # 转为 int16 供 VAD 使用
                     audio_int16 = AudioConverter.to_int16(audio_chunk)
+
+                    rms = np.sqrt(np.mean(audio_chunk**2))
+                    debug(f"Audio chunk RMS: {rms:.6f}, len: {len(audio_chunk)}")
+                    debug(f"Audio chunk min: {audio_chunk.min():.6f}, max: {audio_chunk.max():.6f}")    
+                    debug(f"Audio chunk int16 min: {audio_int16.min():.6f}, max: {audio_int16.max():.6f}")
+
                     vad_segments = stream.process(audio_int16)
                     if vad_segments:
                         await sm.on_vad_segments(vad_segments)
