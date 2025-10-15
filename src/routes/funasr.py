@@ -6,9 +6,10 @@ import numpy as np
 from typing import Dict, Optional
 from fastapi import APIRouter, WebSocket
 
-from ..utils import debug,info, error
-from ..services import vad_service, VADStateMachine, get_kws_service, get_asr_service
+from ..utils import debug, info, error
+from ..services import vad_service, get_kws_service, get_asr_service
 from ..utils.audio_converter import AudioConverter
+from ..services.vad.session import VADSession  
 
 kws_service = get_kws_service()
 asr_service = get_asr_service()
@@ -19,8 +20,8 @@ websocket_router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-# 客户端状态管理
-active_state_machines: Dict[str, VADStateMachine] = {}
+# 客户端会话管理（用 VADSession 替代 VADStateMachine）
+active_sessions: Dict[str, VADSession] = {}
 
 
 async def on_vad_start(websocket: WebSocket, session_id: str):
@@ -37,48 +38,43 @@ async def on_kws_feed(websocket: WebSocket, session_id: str, chunk: np.ndarray):
     """流式送入 KWS 模型"""
     if not kws_service.is_initialized():
         return
-    pass
+    # TODO: 实际调用 KWS 检测逻辑（你可在此处添加）
+    # if await kws_service.detect_stream(chunk):
+    #     await on_interrupt(websocket, session_id)
 
 
 async def on_asr_feed(websocket: WebSocket, session_id: str, chunk: np.ndarray):
     """流式送入 ASR 模型"""
-    if not asr_service.is_initialized():
-        return
-    partial_result = await asr_service.recognize_stream(chunk)
-    if partial_result:
-        await websocket.send_json({"type": "asr_partial", "text": partial_result})
+    # if not asr_service.is_initialized():
+    #     return
+    # partial_result = await asr_service.recognize_stream(chunk)
+    # if partial_result:
+    #     await websocket.send_json({"type": "asr_partial", "text": partial_result})
 
 
-async def on_asr_end(websocket: WebSocket, session_id: str, final_audio: np.ndarray):
+async def on_asr_end(websocket: WebSocket, session_id: str, final_audio: np.ndarray, start_ms: int, end_ms: int):
     """ASR 结束，可做最终识别（可选）"""
     if asr_service.is_initialized():
-        pass
+        # 可选：用完整音频做一次 final 识别
+        # final_text = await asr_service.finalize()
         await websocket.send_json({"type": "asr_final", "text": ""})
-    # 重置状态机
-    sm = active_state_machines.get(session_id)
-    if sm:
-        sm.reset()
+    else:
+        await websocket.send_json({"type": "asr_final", "text": ""})
+
+    # 重置会话
+    active_sessions.pop(session_id, None)
     await websocket.send_json(
         {"type": "vad_event", "event": "asr_end", "message": "语音识别结束"}
     )
 
 
-async def on_interrupt(websocket: WebSocket, session_id: str):
+async def on_vad_interrupt(websocket: WebSocket, session_id: str):
     """被打断：停止当前 ASR，准备新识别"""
     await asr_service.interrupt()
     await websocket.send_json(
         {"type": "interrupt", "message": "检测到唤醒词，已打断当前识别"}
     )
-
-
-def bind_callbacks(sm: VADStateMachine, websocket: WebSocket, session_id: str):
-    """绑定状态机回调"""
-    sm.on_vad_start = lambda: on_vad_start(websocket, session_id)
-    sm.on_kws_feed = lambda chunk: on_kws_feed(websocket, session_id, chunk)
-    sm.on_asr_feed = lambda chunk: on_asr_feed(websocket, session_id, chunk)
-    sm.on_asr_end = lambda audio: on_asr_end(websocket, session_id, audio)
-    sm.on_interrupt = lambda: on_interrupt(websocket, session_id)
-
+    # 注意：VADSession 已自动 reset，无需手动 reset
 
 @websocket_router.websocket("/ws")
 async def websocket_asr(websocket: WebSocket):
@@ -96,25 +92,23 @@ async def websocket_asr(websocket: WebSocket):
                 )
             )
         else:
-            stream = vad_service.create_stream(max_end_silence_time=600,speech_noise_thres=0.8)
+            stream = vad_service.create_stream(max_end_silence_time=600, speech_noise_thres=0.8)
 
-        # 创建状态机
-        sm = VADStateMachine(
-            sample_rate=16000,
-            min_speech_ms=200,
-            max_speech_ms=15000,
-            trailing_silence_ms=600,
-            buffer_duration_sec=5.0,
+        # ✅ 创建 VADSession 并绑定回调
+        vad_session = VADSession(
+            on_voice_start=lambda: on_vad_start(websocket, session_id),
+            on_voice_active=lambda chunk, ts: on_asr_feed(websocket, session_id, chunk),
+            on_voice_end=lambda audio, start, end: on_asr_end(websocket, session_id, audio, start, end),
+            on_vad_interrupt=lambda: on_vad_interrupt(websocket, session_id),
         )
-        bind_callbacks(sm, websocket, session_id)
-        active_state_machines[session_id] = sm
+        active_sessions[session_id] = vad_session
 
         while True:
             data = await websocket.receive_json()
             msg_type = data.get("type")
 
             if msg_type == "start":
-                sm.reset()
+                vad_session.reset()
                 if stream:
                     stream.reset()
                 await websocket.send_json(
@@ -130,37 +124,34 @@ async def websocket_asr(websocket: WebSocket):
 
                     audio_chunk = np.array(audio_list, dtype=np.float32)
 
-
-
-                    if not (
-                        -1.0 <= audio_chunk.min() <= 1.0
-                        and -1.0 <= audio_chunk.max() <= 1.0
-                    ):
+                    if not (-1.0 <= audio_chunk.min() <= 1.0 and -1.0 <= audio_chunk.max() <= 1.0):
                         raise ValueError("音频数据超出 [-1, 1] 范围")
                     if len(audio_chunk) % 160 != 0:
                         raise ValueError("音频块长度需为160的倍数（10ms对齐）")
 
-                    # === 核心：更新状态机 ===
-                    sm.add_audio_chunk(audio_chunk)  # 缓存 float32
+                    # 缓存 float32 到 VADSession
+                    vad_session.add_audio_chunk(audio_chunk)
 
-                    # 转为 int16 供 VAD 使用
+                    # 转为 int16 供 FunASR VAD 使用
                     audio_int16 = AudioConverter.to_int16(audio_chunk)
 
                     rms = np.sqrt(np.mean(audio_chunk**2))
                     debug(f"Audio chunk RMS: {rms:.6f}, len: {len(audio_chunk)}")
-                    debug(f"Audio chunk min: {audio_chunk.min():.6f}, max: {audio_chunk.max():.6f}")    
-                    debug(f"Audio chunk int16 min: {audio_int16.min():.6f}, max: {audio_int16.max():.6f}")
+                    debug(f"Audio chunk min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f}")
 
+                    # 获取 VAD 分段结果
                     vad_segments = stream.process(audio_int16)
+                    debug(f"VAD segments: {vad_segments}")
                     if vad_segments:
-                        await sm.on_vad_segments(vad_segments)
+                        # ✅ 核心：更新 VADSession 状态
+                        await vad_session.update_vad_result(vad_segments)
 
                 except Exception as e:
                     error(f"处理音频失败: {e}")
                     await websocket.send_json({"type": "error", "message": str(e)})
 
             elif msg_type == "stop" or msg_type == "reset":
-                sm.reset()
+                vad_session.reset()
                 if stream:
                     stream.reset()
                 await websocket.send_json({"type": "info", "message": "已重置"})
@@ -175,8 +166,7 @@ async def websocket_asr(websocket: WebSocket):
     except Exception as e:
         error(f"WebSocket 错误: {e}")
     finally:
-        active_state_machines.pop(session_id, None)
-        # 检查WebSocket连接是否仍然打开，避免重复关闭
-        if websocket.client_state == 1:  # 1表示连接仍然打开
+        active_sessions.pop(session_id, None)
+        if websocket.client_state == 1:  # 连接仍打开
             await websocket.close()
         info("WebSocket 连接已关闭")
