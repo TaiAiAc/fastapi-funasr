@@ -10,7 +10,7 @@ from .vad import (
     preload_vad_model,
     VADSession,
     StreamingVADService,
-    VADStateMachine,
+    SessionHandler,
 )
 
 # 从kws模块导入KWS服务类和实例
@@ -25,7 +25,7 @@ __all__ = [
     "VADService",
     "vad_service",
     "VADSession",
-    "VADStateMachine",
+    "SessionHandler",
     "preload_vad_model",
     "KWSService",
     "get_kws_service",
