@@ -45,7 +45,7 @@ async def analyze_voice(
 
     try:
         # 检查VAD服务是否已初始化
-        if not vad_service.is_initialized():
+        if not vad_service.is_initialized:
             error("VAD模型未初始化")
             return JSONResponse(
                 status_code=503,

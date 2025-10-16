@@ -1,7 +1,3 @@
-from .core import ASRService, get_asr_service, preload_asr_model
+from .core import ASRService, preload_asr_model
 
-__all__ = [
-    'ASRService',
-    'get_asr_service',
-    'preload_asr_model'
-]
+__all__ = ["ASRService", "preload_asr_model"]

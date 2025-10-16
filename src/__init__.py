@@ -58,8 +58,8 @@ async def startup_event():
         loop = asyncio.get_event_loop()
 
         loop.run_in_executor(None, preload_vad_model)
-        # loop.run_in_executor(None, preload_kws_model)
-        # loop.run_in_executor(None, preload_asr_model)
+        loop.run_in_executor(None, preload_kws_model)
+        loop.run_in_executor(None, preload_asr_model)
     except Exception as e:
         error(f"启动过程中发生异常: {e}")
 

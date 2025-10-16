@@ -7,15 +7,15 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket
 
 from ..utils import info, debug, error, AudioConverter
-from ..services import vad_service, VADSession, SessionHandler
+from ..services import vad_service, StateMachine, EventHandler
 
 websocket_router = APIRouter(
     prefix="/funasr",
     tags=["WebSocket语音识别"],
 )
 
-active_sessions: Dict[str, VADSession] = {}
-active_handlers: Dict[str, SessionHandler] = {}  # 可选：便于调试
+active_sessions: Dict[str, StateMachine] = {}
+active_handlers: Dict[str, EventHandler] = {}  
 
 
 @websocket_router.websocket("/ws")
@@ -27,22 +27,14 @@ async def websocket_asr(websocket: WebSocket):
     info(f"WebSocket 连接已建立，会话ID: {session_id}")
 
     try:
-        if not vad_service.is_initialized():
-            await websocket.send_text(
-                json.dumps(
-                    {"type": "warning", "message": "VAD模型未初始化，语音检测不可用"}
-                )
-            )
-
         # ✅ 创建会话处理器
-        handler = SessionHandler(websocket, session_id)
+        handler = EventHandler(websocket, session_id)
         active_handlers[session_id] = handler
 
-        # ✅ 创建 VADSession，直接绑定 handler 的方法（无 lambda！）
-        vad_session = VADSession(handler=handler)
-        active_sessions[session_id] = vad_session
-
-        if vad_service.is_initialized():
+        state_machine = StateMachine(handler=handler)
+        active_sessions[session_id] = state_machine
+        
+        if vad_service.is_initialized:
             stream = vad_service.create_stream(
                 max_end_silence_time=600, speech_noise_thres=0.8
             )
@@ -52,7 +44,7 @@ async def websocket_asr(websocket: WebSocket):
             msg_type = data.get("type")
 
             if msg_type == "start":
-                vad_session.reset()
+                state_machine.reset()
                 if stream:
                     stream.reset()
                 await handler.send_info("开始接收音频")
@@ -73,7 +65,7 @@ async def websocket_asr(websocket: WebSocket):
                     if len(audio_chunk) % 160 != 0:
                         raise ValueError("音频块长度需为160的倍数（10ms对齐）")
 
-                    vad_session.add_audio_chunk(audio_chunk)
+                    state_machine.add_audio_chunk(audio_chunk)
                     audio_int16 = AudioConverter.to_int16(audio_chunk)
 
                     rms = np.sqrt(np.mean(audio_chunk**2))
@@ -85,14 +77,14 @@ async def websocket_asr(websocket: WebSocket):
                     vad_segments = stream.process(audio_int16) if stream else []
                     debug(f"VAD segments: {vad_segments}")
                     if vad_segments:
-                        await vad_session.update_vad_result(vad_segments)
+                        await state_machine.update_vad_result(vad_segments)
 
                 except Exception as e:
                     error(f"处理音频失败: {e}")
                     await websocket.send_json({"type": "error", "message": str(e)})
 
             elif msg_type in ("stop", "reset"):
-                vad_session.reset()
+                state_machine.reset()
                 if stream:
                     stream.reset()
                 await handler.send_info("已重置")
@@ -104,6 +96,7 @@ async def websocket_asr(websocket: WebSocket):
 
     except Exception as e:
         error(f"WebSocket 错误: {e}")
+        await websocket.close()
     finally:
         active_sessions.pop(session_id, None)
         active_handlers.pop(session_id, None)

@@ -1,5 +1,6 @@
 from .logger import logger, info, error, debug, warning,critical, log_request, log_response
 from .audio_converter import AudioConverter
+from .resolve_device import resolve_device
 
 __all__ = [
     "logger",
@@ -10,5 +11,6 @@ __all__ = [
     "critical",
     "log_request",
     "log_response",
-    "AudioConverter"
+    "AudioConverter",
+    "resolve_device"
 ]

@@ -112,7 +112,7 @@ class StreamingVADService:
         if audio_chunk.dtype != np.int16:
             raise ValueError(f"VAD 流式输入必须是 int16，当前类型: {audio_chunk.dtype}")
         
-            # 预热：确保模型 cache 正确初始化
+        # 预热：确保模型 cache 正确初始化
         if not self._has_warmup:
             warmup_chunk = np.zeros_like(audio_chunk)  # 同长度静音
             try:

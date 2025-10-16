@@ -6,16 +6,16 @@ import numpy as np
 from fastapi import WebSocket
 
 from ..utils import info, debug, error
-from .kws import get_kws_service
-from .asr import get_asr_service
+from .kws import KWSService
+from .asr import ASRService
 
 
-class SessionHandler:
+class EventHandler:
     def __init__(self, websocket: WebSocket, session_id: str):
         self.websocket = websocket
         self.session_id = session_id
-        self.kws_service = get_kws_service()
-        self.asr_service = get_asr_service()
+        self.kws_service = KWSService()
+        self.asr_service = ASRService()
         self._has_interrupted = False  # 可选：记录是否已被打断
 
     async def on_voice_start(self):
@@ -29,7 +29,7 @@ class SessionHandler:
 
     async def on_voice_active(self, chunk: np.ndarray, timestamp_ms: int):
         # TODO: 流式 KWS 检测（可选）
-        if self.kws_service.is_initialized() and not self._has_interrupted:
+        if self.kws_service.is_initialized and not self._has_interrupted:
             # 示例：假设 detect_stream 返回 bool
             # if await self.kws_service.detect_stream(chunk):
             #     await self.on_vad_interrupt()
@@ -44,7 +44,7 @@ class SessionHandler:
     async def on_voice_end(self, full_audio: np.ndarray, start_ms: int, end_ms: int):
         # 可选：用完整音频做最终识别
         final_text = ""
-        if self.asr_service.is_initialized():
+        if self.asr_service.is_initialized:
             # final_text = await self.asr_service.finalize(full_audio)
             pass
 

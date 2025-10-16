@@ -1,14 +1,14 @@
 # src/services/vad/session.py
 from typing import Optional, Callable, Awaitable, List
 import numpy as np
-from ...common import VADState 
-from ..session_handler import SessionHandler
+from ..common import VADState 
+from .event_handler import EventHandler
 
 
-class VADSession:
+class StateMachine:
     def __init__(
         self,
-        handler: SessionHandler,
+        handler: EventHandler,
     ):
         self.state = VADState.IDLE
         self.audio_buffer: List[np.ndarray] = []

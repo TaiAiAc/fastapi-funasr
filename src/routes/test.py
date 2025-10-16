@@ -32,7 +32,7 @@ async def websocket_asr(websocket: WebSocket):
 
     try:
         # 检查VAD服务是否已初始化
-        if not vad_service.is_initialized():
+        if not vad_service.is_initialized:
             await websocket.send_text(json.dumps({
                 "type": "warning", 
                 "message": "VAD模型尚未初始化完成，语音端点检测功能将不可用"
