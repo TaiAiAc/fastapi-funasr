@@ -5,6 +5,7 @@ from .streaming import StreamingKWSService
 from ...config import config_manager
 from funasr import AutoModel
 from ..base_model_service import BaseModelService
+import numpy as np
 
 
 class KWSService(BaseModelService):
@@ -34,6 +35,34 @@ class KWSService(BaseModelService):
         """非流式推理"""
         return self._model.generate(input=audio_input, **kwargs)
 
+    def detect_keyword(self, audio: np.ndarray) -> str | None:
+        """
+        对一段音频进行关键词检测
+        :param audio: int16 或 float32, 16k, 单通道
+        :return: 唤醒词文本（如 "小云"），未命中返回 None
+        """
+        if not self.is_initialized:
+            raise RuntimeError("KWS 模型未初始化")
+
+        # FunASR 要求输入为 int16
+        if audio.dtype == np.float32:
+            audio = (np.clip(audio, -1.0, 1.0) * 32768).astype(np.int16)
+
+        try:
+            result = self._model.generate(input=audio)
+            # FunASR KWS 返回格式：[{'text': '小云', 'score': 0.92}]
+            if isinstance(result, list) and len(result) > 0:
+                res = result[0]
+                if isinstance(res, dict) and res.get("text"):
+                    keyword = res["text"].strip()
+                    score = res.get("score", 0.0)
+                    if score >= 0.5:  # 可配置阈值
+                        return keyword
+            return None
+        except Exception as e:
+            error(f"KWS detect_keyword 异常: {e}")
+            return None
+
     def create_stream(self):
         """创建流式会话"""
         if not self.is_initialized:
@@ -41,16 +70,3 @@ class KWSService(BaseModelService):
         return StreamingKWSService(
             self._model,
         )
-
-
-# 创建全局KWS服务实例
-kws_service = KWSService()
-
-def preload_kws_model() -> bool:
-    """预加载 KWS 模型"""
-    try:
-        kws_service.start()  # 调用基类的 start() 初始化模型
-        return kws_service.is_initialized
-    except Exception as e:
-        error(f"预加载KWS模型失败: {e}")
-        return False

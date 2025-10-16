@@ -50,17 +50,3 @@ class VADService(BaseModelService):
             max_end_silence_time=max_end_silence_time,
             speech_noise_thres=speech_noise_thres,
         )
-
-
-# 创建全局VAD服务实例
-vad_service = VADService()
-
-
-def preload_vad_model() -> bool:
-    """预加载 VAD 模型"""
-    try:
-        vad_service.start()  # 调用基类的 start() 初始化模型
-        return vad_service.is_initialized
-    except Exception as e:
-        error(f"预加载VAD模型失败: {e}")
-        return False
