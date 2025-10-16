@@ -48,9 +48,8 @@ class SessionHandler:
             # final_text = await self.asr_service.finalize(full_audio)
             pass
 
-        await self.websocket.send_json({"type": "asr_final", "text": final_text})
         await self.websocket.send_json(
-            {"type": "vad_event", "event": "asr_end", "message": "语音识别结束"}
+            {"type": "vad_event", "event": "asr_final", "message": "语音识别结束"}
         )
 
     async def on_vad_interrupt(self):
