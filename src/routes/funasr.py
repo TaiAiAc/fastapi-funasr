@@ -1,6 +1,5 @@
 # src/routes/funasr.py
 
-import json
 import uuid
 import numpy as np
 from typing import Dict
