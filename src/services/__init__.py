@@ -3,6 +3,8 @@
 为路由层提供统一的服务接口
 """
 
+from .session_handler import SessionHandler
+
 # 从vad模块导入VAD服务类和实例
 from .vad import (
     VADService,
@@ -10,7 +12,6 @@ from .vad import (
     preload_vad_model,
     VADSession,
     StreamingVADService,
-    SessionHandler,
 )
 
 # 从kws模块导入KWS服务类和实例

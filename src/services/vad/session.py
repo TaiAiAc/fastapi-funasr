@@ -1,29 +1,21 @@
 # src/services/vad/session.py
 from typing import Optional, Callable, Awaitable, List
 import numpy as np
-from ...common import VADState  # 注意：这里应只用 VADState，InteractionState 已不用
-import asyncio
+from ...common import VADState 
+from ..session_handler import SessionHandler
 
 
 class VADSession:
     def __init__(
         self,
-        on_voice_start: Optional[Callable[[], Awaitable[None]]] = None,
-        on_voice_active: Optional[Callable[[np.ndarray, int], Awaitable[None]]] = None,
-        on_voice_end: Optional[
-            Callable[[np.ndarray, int, int], Awaitable[None]]
-        ] = None,
-        on_vad_interrupt: Optional[Callable[[], Awaitable[None]]] = None,
+        handler: SessionHandler,
     ):
         self.state = VADState.IDLE
         self.audio_buffer: List[np.ndarray] = []
         self.total_samples = 0
         self.sample_rate = 16000
 
-        self.on_voice_start = on_voice_start
-        self.on_voice_active = on_voice_active
-        self.on_voice_end = on_voice_end
-        self.on_vad_interrupt = on_vad_interrupt
+        self.handler = handler
 
         self._speech_start_time_ms: Optional[int] = None
         self._pending_segments: List[List[int]] = []
@@ -81,18 +73,18 @@ class VADSession:
         # 流式活跃回调
         if (
             self.state == VADState.SPEAKING
-            and self.on_voice_active
+            and self.handler.on_voice_active
             and self.audio_buffer
         ):
             latest_chunk = self.audio_buffer[-1]
-            await self.on_voice_active(latest_chunk, current_time_ms)
+            await self.handler.on_voice_active(latest_chunk, current_time_ms)
 
     async def _on_voice_start(self, start_ms: int):
         if self.state == VADState.IDLE:
             self.state = VADState.SPEAKING
             self._speech_start_time_ms = start_ms
-            if self.on_voice_start:
-                await self.on_voice_start()
+            if self.handler.on_voice_start:
+                await self.handler.on_voice_start()
 
     async def _handle_complete_speech(self, start_ms: int, end_ms: int):
         if self.state in (VADState.SPEAKING, VADState.IDLE):
@@ -102,8 +94,8 @@ class VADSession:
                 else np.array([], dtype=np.float32)
             )
             self.state = VADState.VOICE_END
-            if self.on_voice_end:
-                await self.on_voice_end(full_audio, start_ms, end_ms)
+            if self.handler.on_voice_end:
+                await self.handler.on_voice_end(full_audio, start_ms, end_ms)
             self._reset_buffer()
 
     def _reset_buffer(self):
@@ -117,8 +109,8 @@ class VADSession:
             self.state = VADState.IDLE
             self._reset_buffer()
             self._pending_segments.clear()  # 👈 关键：清空 pending segments
-            if self.on_vad_interrupt:
-                await self.on_vad_interrupt()
+            if self.handler.on_vad_interrupt:
+                await self.handler.on_vad_interrupt()
 
     def reset(self):
         self._reset_buffer()

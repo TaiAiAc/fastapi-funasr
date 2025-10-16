@@ -5,9 +5,9 @@ from typing import Optional
 import numpy as np
 from fastapi import WebSocket
 
-from ...utils import info, debug, error
-from ..kws import get_kws_service
-from ..asr import get_asr_service
+from ..utils import info, debug, error
+from .kws import get_kws_service
+from .asr import get_asr_service
 
 
 class SessionHandler:
@@ -18,7 +18,7 @@ class SessionHandler:
         self.asr_service = get_asr_service()
         self._has_interrupted = False  # 可选：记录是否已被打断
 
-    async def on_vad_start(self):
+    async def on_voice_start(self):
         await self.websocket.send_json(
             {
                 "type": "vad_event",

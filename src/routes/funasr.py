@@ -6,8 +6,8 @@ import numpy as np
 from typing import Dict
 from fastapi import APIRouter, WebSocket
 
-from ..utils import info, debug, error,AudioConverter
-from ..services import vad_service,VADSession,SessionHandler
+from ..utils import info, debug, error, AudioConverter
+from ..services import vad_service, VADSession, SessionHandler
 
 websocket_router = APIRouter(
     prefix="/funasr",
@@ -16,6 +16,7 @@ websocket_router = APIRouter(
 
 active_sessions: Dict[str, VADSession] = {}
 active_handlers: Dict[str, SessionHandler] = {}  # 可选：便于调试
+
 
 @websocket_router.websocket("/ws")
 async def websocket_asr(websocket: WebSocket):
@@ -28,7 +29,9 @@ async def websocket_asr(websocket: WebSocket):
     try:
         if not vad_service.is_initialized():
             await websocket.send_text(
-                json.dumps({"type": "warning", "message": "VAD模型未初始化，语音检测不可用"})
+                json.dumps(
+                    {"type": "warning", "message": "VAD模型未初始化，语音检测不可用"}
+                )
             )
 
         # ✅ 创建会话处理器
@@ -36,16 +39,13 @@ async def websocket_asr(websocket: WebSocket):
         active_handlers[session_id] = handler
 
         # ✅ 创建 VADSession，直接绑定 handler 的方法（无 lambda！）
-        vad_session = VADSession(
-            on_voice_start=handler.on_vad_start,
-            on_voice_active=handler.on_voice_active,
-            on_voice_end=handler.on_voice_end,
-            on_vad_interrupt=handler.on_vad_interrupt,
-        )
+        vad_session = VADSession(handler=handler)
         active_sessions[session_id] = vad_session
 
         if vad_service.is_initialized():
-            stream = vad_service.create_stream(max_end_silence_time=600, speech_noise_thres=0.8)
+            stream = vad_service.create_stream(
+                max_end_silence_time=600, speech_noise_thres=0.8
+            )
 
         while True:
             data = await websocket.receive_json()
@@ -65,7 +65,10 @@ async def websocket_asr(websocket: WebSocket):
                         raise ValueError("audio data must be a list of floats")
 
                     audio_chunk = np.array(audio_list, dtype=np.float32)
-                    if not (-1.0 <= audio_chunk.min() <= 1.0 and -1.0 <= audio_chunk.max() <= 1.0):
+                    if not (
+                        -1.0 <= audio_chunk.min() <= 1.0
+                        and -1.0 <= audio_chunk.max() <= 1.0
+                    ):
                         raise ValueError("音频数据超出 [-1, 1] 范围")
                     if len(audio_chunk) % 160 != 0:
                         raise ValueError("音频块长度需为160的倍数（10ms对齐）")
@@ -75,7 +78,9 @@ async def websocket_asr(websocket: WebSocket):
 
                     rms = np.sqrt(np.mean(audio_chunk**2))
                     debug(f"Audio chunk RMS: {rms:.6f}, len: {len(audio_chunk)}")
-                    debug(f"Audio chunk min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f}")
+                    debug(
+                        f"Audio chunk min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f}"
+                    )
 
                     vad_segments = stream.process(audio_int16) if stream else []
                     debug(f"VAD segments: {vad_segments}")
