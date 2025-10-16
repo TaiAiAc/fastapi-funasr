@@ -36,29 +36,50 @@ class KWSService(BaseModelService):
         return self._model.generate(input=audio_input, **kwargs)
 
     def detect_keyword(self, audio: np.ndarray) -> str | None:
-        """
-        对一段音频进行关键词检测
-        :param audio: int16 或 float32, 16k, 单通道
-        :return: 唤醒词文本（如 "小云"），未命中返回 None
-        """
         if not self.is_initialized:
             raise RuntimeError("KWS 模型未初始化")
 
-        # FunASR 要求输入为 int16
-        if audio.dtype == np.float32:
-            audio = (np.clip(audio, -1.0, 1.0) * 32768).astype(np.int16)
+        # ✅ 确保输入是 float32 且在 [-1.0, 1.0]
+        if audio.dtype == np.int16:
+            # 如果意外收到 int16，转为 float32
+            audio = audio.astype(np.float32) / 32768.0
+        elif audio.dtype == np.float32:
+            # 已是 float32，只需 clip
+            pass
+        else:
+            raise ValueError(f"不支持的音频 dtype: {audio.dtype}")
+
+        audio = np.clip(audio, -1.0, 1.0)
 
         try:
-            result = self._model.generate(input=audio)
-            # FunASR KWS 返回格式：[{'text': '小云', 'score': 0.92}]
-            if isinstance(result, list) and len(result) > 0:
-                res = result[0]
-                if isinstance(res, dict) and res.get("text"):
-                    keyword = res["text"].strip()
-                    score = res.get("score", 0.0)
-                    if score >= 0.5:  # 可配置阈值
-                        return keyword
-            return None
+            result = self._model.generate(input=audio)  # ← 传 float32！
+            if not isinstance(result, list) or len(result) == 0:
+                return None
+
+            res = result[0]
+            if not isinstance(res, dict):
+                return None
+
+            raw_text = res.get("text", "")
+            if not isinstance(raw_text, str) or not raw_text.startswith("detected "):
+                return None
+
+            try:
+                parts = raw_text.split()
+                if len(parts) < 3:
+                    return None
+                keyword = parts[1]
+                score = float(parts[2])
+            except (ValueError, IndexError):
+                error(f"无法解析 KWS 输出: {raw_text}")
+                return None
+
+            keyword = keyword.strip()
+            info(f"检测到关键词: {keyword}，置信度: {score:.4f}")
+            if not keyword or score < 0.2:
+                return None
+            return keyword
+
         except Exception as e:
             error(f"KWS detect_keyword 异常: {e}")
             return None
@@ -67,6 +88,4 @@ class KWSService(BaseModelService):
         """创建流式会话"""
         if not self.is_initialized:
             raise RuntimeError("KWS模型未初始化，请先调用 start()")
-        return StreamingKWSService(
-            self._model,
-        )
+        return StreamingKWSService(self)

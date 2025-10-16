@@ -116,7 +116,7 @@ class StreamingVADService:
         chunk_ms = len(audio_chunk) / 16.0  # 计算音频chunk的时长（毫秒）
         chunk_size = max(1, int(round(chunk_ms / 10)))  # 每帧10ms，至少1帧
         
-        debug(f"处理音频块: len={len(audio_chunk)}, chunk_ms={chunk_ms:.1f}ms, chunk_size={chunk_size}")
+        # debug(f"处理音频块: len={len(audio_chunk)}, chunk_ms={chunk_ms:.1f}ms, chunk_size={chunk_size}")
         
         # 直接处理每个chunk，不累积
         result = self.model.generate(

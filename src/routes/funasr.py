@@ -68,14 +68,14 @@ async def websocket_asr(websocket: WebSocket):
                     rms = np.sqrt(np.mean(audio_chunk**2))
 
                     vad_segments = stream.process(audio_int16) if stream else []
-                    debug(f"")
+
                     if vad_segments:
                         await state_machine.update_vad_result(vad_segments)
 
-                    debug(
-                        f"""RMS: {rms:.6f}, len: {len(audio_chunk)} ,采样率: {state_machine.sample_rate}, min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f},
-                        VAD segments: {vad_segments}"""
-                    )
+                    # debug(
+                    #     f"""RMS: {rms:.6f}, len: {len(audio_chunk)} ,采样率: {state_machine.sample_rate}, min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f},
+                    #     VAD segments: {vad_segments}"""
+                    # )
 
                 except Exception as e:
                     error(f"处理音频失败: {e}")

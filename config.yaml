@@ -21,6 +21,7 @@ kws:
   device: "cpu"
   # 可以在这里添加更多KWS相关配置
   params:
+    keywords: '你好'
     output_dir: "logs/kws"        # 输出目录
     disable_pbar: true          # 是否禁用进度条
     disable_log: true           # 是否禁用日志输出

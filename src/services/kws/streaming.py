@@ -12,7 +12,10 @@ class StreamingKWSService:
     """
 
     def __init__(
-        self, model, buffer_duration_sec: float = 1.5, sample_rate: int = 16000
+        self,
+        model,
+        buffer_duration_sec: float = 1.5,
+        sample_rate: int = 16000,
     ):
         """
         Args:
