@@ -4,24 +4,34 @@ app:
 # VAD 服务配置
 vad:
   model_name: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
-  model_revision: "v2.0.4"
   device: "auto"
   # 可以在这里添加更多VAD相关配置
   params:
-    max_end_silence_time: 300    # 尾部静音超时（ms）
-    speech_noise_thres: 0.4     # 语音/噪音阈值（0~1）
+    model_revision: "v2.0.4"
+    max_end_silence_time: 600    # 尾部静音超时（ms）
+    speech_noise_thres: 0.8    # 语音/噪音阈值（0~1）
+    disable_pbar: true          # 是否禁用进度条
+    disable_log: false           # 是否禁用日志输出
+    disable_update: true        # 是否禁用模型更新
 
 # KWS 服务配置
 kws:
   model_name: "iic/speech_charctc_kws_phone-xiaoyun"
   device: "cpu"
   # 可以在这里添加更多KWS相关配置
+  params:
+    max_end_silence_time: 600    # 尾部静音超时（ms）
+    speech_noise_thres: 0.8    # 语音/噪音阈值（0~1）
+    disable_pbar: true          # 是否禁用进度条
+    disable_log: true           # 是否禁用日志输出
+    disable_update: true        # 是否禁用模型更新
 
 # ASR 服务配置
 asr:
   model_name: "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
-  model_revision: "v2.0.4"
   device: "cuda"
   # 可以在这里添加更多ASR相关配置
   params:
+    model_revision: "v2.0.4"
     chunk_size: 5  # 流式处理的块大小
+    disable_update: true        # 是否禁用模型更新

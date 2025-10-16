@@ -1,7 +1,8 @@
-# src/services/vad/session.py
+# src\services\state_machine.py
+
 from typing import Optional, Callable, Awaitable, List
 import numpy as np
-from ..common import VADState 
+from ..common import VADState
 from .event_handler import EventHandler
 
 

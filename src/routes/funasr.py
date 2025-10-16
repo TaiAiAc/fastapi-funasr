@@ -15,7 +15,7 @@ websocket_router = APIRouter(
 )
 
 active_sessions: Dict[str, StateMachine] = {}
-active_handlers: Dict[str, EventHandler] = {}  
+active_handlers: Dict[str, EventHandler] = {}
 
 
 @websocket_router.websocket("/ws")
@@ -33,11 +33,9 @@ async def websocket_asr(websocket: WebSocket):
 
         state_machine = StateMachine(handler=handler)
         active_sessions[session_id] = state_machine
-        
+
         if vad_service.is_initialized:
-            stream = vad_service.create_stream(
-                max_end_silence_time=600, speech_noise_thres=0.8
-            )
+            stream = vad_service.create_stream()
 
         while True:
             data = await websocket.receive_json()
@@ -69,15 +67,16 @@ async def websocket_asr(websocket: WebSocket):
                     audio_int16 = AudioConverter.to_int16(audio_chunk)
 
                     rms = np.sqrt(np.mean(audio_chunk**2))
-                    debug(f"Audio chunk RMS: {rms:.6f}, len: {len(audio_chunk)}")
-                    debug(
-                        f"Audio chunk min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f}"
-                    )
 
                     vad_segments = stream.process(audio_int16) if stream else []
-                    debug(f"VAD segments: {vad_segments}")
+                    debug(f"")
                     if vad_segments:
                         await state_machine.update_vad_result(vad_segments)
+
+                    debug(
+                        f"""RMS: {rms:.6f}, len: {len(audio_chunk)} ,采样率: {state_machine.sample_rate}, min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f},
+                        VAD segments: {vad_segments}"""
+                    )
 
                 except Exception as e:
                     error(f"处理音频失败: {e}")

@@ -112,24 +112,6 @@ class StreamingVADService:
         if audio_chunk.dtype != np.int16:
             raise ValueError(f"VAD 流式输入必须是 int16，当前类型: {audio_chunk.dtype}")
         
-        # 预热：确保模型 cache 正确初始化
-        if not self._has_warmup:
-            warmup_chunk = np.zeros_like(audio_chunk)  # 同长度静音
-            try:
-                self.model.generate(
-                    input=warmup_chunk,
-                    cache=self.cache,
-                    chunk_size=max(1, int(round(len(warmup_chunk) / 160))),  # 160 = 10ms * 16kHz
-                    is_final=False,
-                    max_end_silence_time=self.max_end_silence_time,
-                    speech_noise_thres=self.speech_noise_thres,
-                )
-                self._has_warmup = True
-                debug("VAD 模型预热完成")
-            except Exception as e:
-                debug(f"VAD 预热失败（可能影响首块检测）: {e}")
-                self._has_warmup = True  # 避免重复尝试
-
         # 根据实际音频长度动态计算chunk_size（帧数），使用四舍五入提高准确性
         chunk_ms = len(audio_chunk) / 16.0  # 计算音频chunk的时长（毫秒）
         chunk_size = max(1, int(round(chunk_ms / 10)))  # 每帧10ms，至少1帧
@@ -162,7 +144,6 @@ class StreamingVADService:
         if valid_segments:
             self._accumulated_raw_segments.extend(valid_segments)
         
-        debug(f"VAD 输出段: {valid_segments}")
         return valid_segments
 
     def finish(self) -> List[List[int]]:

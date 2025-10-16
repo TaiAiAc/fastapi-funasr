@@ -4,7 +4,7 @@ import time
 import torch
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Union, List
-from ..utils import info, error, warning,resolve_device
+from ..utils import info, error, warning, resolve_device
 
 
 class BaseModelService(ABC):
@@ -46,13 +46,11 @@ class BaseModelService(ABC):
         model_params = {
             "model": self.model_name,
             "device": self._device,
-            "disable_pbar": True,
-            "disable_log": True,
+            **self.init_params,
         }
 
         try:
-            info(f"正在加载 {self.service_name} 模型: {self.model_name}")
-            info(f"目标设备: {self._device}")
+            info(f"正在加载 {self.service_name} 模型参数: {self.init_params}")
 
             # 调用子类实现的 _load_model 方法
             self._model = self._load_model(**model_params)
