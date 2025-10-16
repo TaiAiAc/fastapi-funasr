@@ -13,6 +13,7 @@ vad:
     disable_pbar: true          # 是否禁用进度条
     disable_log: false           # 是否禁用日志输出
     disable_update: true        # 是否禁用模型更新
+    output_dir: "logs/vad"        # 输出目录
 
 # KWS 服务配置
 kws:
@@ -20,8 +21,7 @@ kws:
   device: "cpu"
   # 可以在这里添加更多KWS相关配置
   params:
-    max_end_silence_time: 600    # 尾部静音超时（ms）
-    speech_noise_thres: 0.8    # 语音/噪音阈值（0~1）
+    output_dir: "logs/kws"        # 输出目录
     disable_pbar: true          # 是否禁用进度条
     disable_log: true           # 是否禁用日志输出
     disable_update: true        # 是否禁用模型更新
@@ -33,5 +33,6 @@ asr:
   # 可以在这里添加更多ASR相关配置
   params:
     model_revision: "v2.0.4"
+    output_dir: "logs/asr"        # 输出目录
     chunk_size: 5  # 流式处理的块大小
     disable_update: true        # 是否禁用模型更新
