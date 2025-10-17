@@ -16,6 +16,7 @@ class StreamingKWSService:
         chunk_size: list = [0, 5, 2],
     ):  # 分块参数调整为300ms
         self.kws_service = kws_service
+        self.generate_options = generate_options
         self.sample_rate = sample_rate
         self.max_buffer_samples = int(buffer_duration_sec * sample_rate)
         self.reset()
@@ -53,7 +54,6 @@ class StreamingKWSService:
         try:
             # 调用流式接口
             output = self.kws_service._model.generate(
-                **self.generate_options,
                 input=chunk,
                 cache=self.cache,
                 return_cache=True,

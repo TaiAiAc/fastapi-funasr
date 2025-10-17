@@ -36,7 +36,5 @@ class VADService(BaseModelService):
         if not self.is_initialized:
             raise RuntimeError("VAD模型未初始化，请先调用 start()")
         return StreamingVADService(
-            self._model,
-            self.vad_config.get("generate", {}),
-            merge_gap_ms=merge_gap_ms,
+            self._model, self.vad_config.get("generate", {}), merge_gap_ms=merge_gap_ms
         )

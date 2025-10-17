@@ -92,7 +92,9 @@ class EventHandler:
                     except Exception as e:
                         error(f"ASR finalize 异常: {e}")
                 await self._send("asr_result", {"final": final_text})
-            # SPEAKING 状态无输出，静默结束
+            else:
+                # SPEAKING 状态（未唤醒）也通知客户端：语音已结束
+                await self._send("vad_event", {"event": "voice_end"})
         finally:
             self._state = SessionState.IDLE
             self._reset()

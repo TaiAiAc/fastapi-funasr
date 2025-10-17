@@ -6,6 +6,7 @@ from ..common import VADState
 from .event_handler import EventHandler
 import asyncio
 
+
 class StateMachine:
     def __init__(self, handler: EventHandler):
         self.state = VADState.IDLE
@@ -14,6 +15,8 @@ class StateMachine:
         self.sample_rate = 16000
         self.handler = handler
         self._current_speech_start_ms: int | None = None
+        self.last_active_time_ms: int | None = None
+        self.silence_timeout_ms = 1000  # 1秒无语音则强制结束
 
     def add_audio_chunk(self, chunk: np.ndarray):
         if chunk.dtype not in (np.float32, np.int16):
@@ -24,6 +27,26 @@ class StateMachine:
         # ✅ 关键：在状态为 SPEAKING 时，立即触发 active
         if self.state == VADState.SPEAKING and self.handler.on_voice_active:
             asyncio.create_task(self.handler.on_voice_active(chunk))
+
+        current_time_ms = self.get_total_duration_ms()
+        if self.state == VADState.SPEAKING:
+            self.last_active_time_ms = current_time_ms  # 更新活跃时间
+            if self.handler.on_voice_active:
+                asyncio.create_task(self.handler.on_voice_active(chunk))
+
+    # 新增：检查静音超时
+    async def check_silence_timeout(self):
+        if self.state != VADState.SPEAKING:
+            return
+        current_time_ms = self.get_total_duration_ms()
+        if (
+            self.last_active_time_ms is not None
+            and current_time_ms - self.last_active_time_ms > self.silence_timeout_ms
+        ):
+            # 强制结束语音
+            await self._handle_complete_speech(
+                self._current_speech_start_ms or 0, current_time_ms
+            )
 
     def get_total_duration_ms(self) -> int:
         return int(self.total_samples * 1000 / self.sample_rate)
@@ -38,7 +61,7 @@ class StateMachine:
 
             # 情况1: 语音开始 [start, -1]
             if start != -1 and end == -1:
-                if start < 100 or current_time_ms < start + 150:
+                if start < 100:
                     continue
                 if self.state == VADState.IDLE:
                     self._current_speech_start_ms = start
@@ -50,7 +73,8 @@ class StateMachine:
                 actual_start = start if start != -1 else self._current_speech_start_ms
                 if actual_start is None:
                     actual_start = max(0, end - 1000)
-                if actual_start >= end or actual_start < 100:
+                # 允许 actual_start == end（边界情况）
+                if actual_start > end or actual_start < 0:  # ← 改为 >，不是 >=
                     continue
 
                 await self._handle_complete_speech(actual_start, end)

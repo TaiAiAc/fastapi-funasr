@@ -79,6 +79,9 @@ async def websocket_asr(websocket: WebSocket):
                     if vad_segments:
                         await state_machine.update_vad_result(vad_segments)
 
+                    # 每次都检查是否超时
+                    await state_machine.check_silence_timeout()
+
                     # debug(
                     #     f"""RMS: {rms:.6f}, len: {len(audio_chunk)} ,采样率: {state_machine.sample_rate}, min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f},
                     #     VAD segments: {vad_segments}"""
