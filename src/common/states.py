@@ -12,7 +12,7 @@ class InteractionState(str, Enum):
 class VADState(Enum):
     IDLE = "idle"
     SPEAKING = "speaking"
-    VOICE_END = "voice_end"
+    # VOICE_END = "voice_end"
 
 # KWSState / ASRState 可保留，但建议服务内部使用，不暴露给状态机
 class KWSState(Enum):

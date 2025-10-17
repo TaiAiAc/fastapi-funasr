@@ -1,9 +1,7 @@
 # src\services\vad\core.py
 
-from typing import Dict, Any, List
-from ...utils import debug, info, error
 from .streaming import StreamingVADService
-from ...config import config_manager
+from ...common import global_config
 from funasr import AutoModel
 from ..base_model_service import BaseModelService
 
@@ -18,14 +16,9 @@ class VADService(BaseModelService):
     def __init__(self):
         """初始化VAD服务，确保模型只被加载一次"""
         # 从配置读取
-        vad_config = config_manager.get_vad_config()
+        self.vad_config = global_config.get_vad_config()
 
-        super().__init__(
-            model_name=vad_config.get("model_name"),
-            device=vad_config.get("device", "auto"),
-            init_params=vad_config.get("params", {}),
-            service_name="VAD服务",
-        )
+        super().__init__(service_name="VAD服务", model_options=self.vad_config)
 
     def _load_model(self, **kwargs):
         """加载VAD模型"""
@@ -38,15 +31,12 @@ class VADService(BaseModelService):
     def create_stream(
         self,
         merge_gap_ms: int = 50,
-        max_end_silence_time: int = 800,
-        speech_noise_thres: float = 0.92,
     ):
         """创建流式会话"""
         if not self.is_initialized:
             raise RuntimeError("VAD模型未初始化，请先调用 start()")
         return StreamingVADService(
             self._model,
+            self.vad_config.get("generate", {}),
             merge_gap_ms=merge_gap_ms,
-            max_end_silence_time=max_end_silence_time,
-            speech_noise_thres=speech_noise_thres,
         )

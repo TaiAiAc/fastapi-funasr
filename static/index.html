@@ -24,7 +24,7 @@
         cursor: pointer;
         border-radius: 4px;
         border: none;
-        background-color: #4CAF50;
+        background-color: #4caf50;
         color: white;
         transition: background-color 0.3s;
       }
@@ -60,7 +60,7 @@
       #progressBar {
         height: 100%;
         width: 0%;
-        background-color: #4CAF50;
+        background-color: #4caf50;
         transition: width 0.3s ease;
       }
       #volumeIndicator {
@@ -83,7 +83,7 @@
         transition: height 0.1s, background-color 0.3s;
       }
       .volumeBar.active {
-        background-color: #4CAF50;
+        background-color: #4caf50;
       }
       #log {
         padding: 15px;
@@ -91,7 +91,7 @@
         height: 300px;
         overflow-y: auto;
         border-radius: 4px;
-        font-family: 'Courier New', monospace;
+        font-family: "Courier New", monospace;
         font-size: 14px;
         line-height: 1.5;
       }
@@ -103,32 +103,52 @@
   </head>
   <body>
     <h1>🎤 FunASR 实时语音识别</h1>
-    
+
     <div class="controls">
       <button id="startBtn">开始录音</button>
       <button id="stopBtn" disabled>停止录音</button>
       <button id="clearBtn">清除日志</button>
     </div>
-    
+
     <div id="status">状态：未连接</div>
-    
+
     <!-- ASR识别结果展示 -->
-    <div id="asrResultContainer" style="margin: 15px 0; padding: 10px; background-color: #e9f7ef; border-radius: 4px; display: none;">
+    <div
+      id="asrResultContainer"
+      style="
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #e9f7ef;
+        border-radius: 4px;
+        display: none;
+      "
+    >
       <h3>📝 语音识别结果</h3>
-      <div id="asrPartial" style="font-style: italic; color: #666; min-height: 20px;"></div>
-      <div id="asrFinal" style="font-weight: bold; color: #333; min-height: 24px; margin-top: 5px;"></div>
+      <div
+        id="asrPartial"
+        style="font-style: italic; color: #666; min-height: 20px"
+      ></div>
+      <div
+        id="asrFinal"
+        style="
+          font-weight: bold;
+          color: #333;
+          min-height: 24px;
+          margin-top: 5px;
+        "
+      ></div>
     </div>
-    
+
     <!-- 进度指示器 -->
     <div id="progressContainer">
       <div id="progressBar"></div>
     </div>
-    
+
     <!-- 语音活动可视化 -->
     <div id="volumeIndicator">
       <!-- 音量条将通过JavaScript动态生成 -->
     </div>
-    
+
     <!-- 日志区域 -->
     <div id="log"></div>
 
@@ -140,206 +160,226 @@
       let isSpeaking = false;
       let startTime = null;
       let volumeBars = [];
-      const NUM_VOLUME_BARS = 30; // 音量条数量
+      const NUM_VOLUME_BARS = 30;
 
       // 初始化音量指示器
       function initVolumeIndicator() {
-        const container = document.getElementById('volumeIndicator');
-        container.innerHTML = '';
+        const container = document.getElementById("volumeIndicator");
+        container.innerHTML = "";
         volumeBars = [];
-        
         for (let i = 0; i < NUM_VOLUME_BARS; i++) {
-          const bar = document.createElement('div');
-          bar.className = 'volumeBar';
-          bar.style.height = '0px';
+          const bar = document.createElement("div");
+          bar.className = "volumeBar";
+          bar.style.height = "0px";
           container.appendChild(bar);
           volumeBars.push(bar);
         }
       }
 
-      // 更新音量指示器
       function updateVolumeIndicator(volume) {
-        // 计算音量条高度（0-100%）
         const barHeight = Math.min(volume * 100, 100);
-        
-        // 更新音量条
         volumeBars.forEach((bar, index) => {
-          // 波浪效果：使不同位置的音量条有不同的高度变化
-          const waveFactor = 0.8 + 0.2 * Math.sin(Date.now() / 300 + index * 0.3);
+          const waveFactor =
+            0.8 + 0.2 * Math.sin(Date.now() / 300 + index * 0.3);
           const height = isSpeaking ? barHeight * waveFactor : 0;
-          
           bar.style.height = `${height}%`;
-          bar.classList.toggle('active', isSpeaking);
+          bar.classList.toggle("active", isSpeaking);
         });
       }
 
-      // 更新进度条
       function updateProgressBar() {
         if (!startTime) return;
-        
         const now = new Date().getTime();
         const elapsed = now - startTime;
-        // 每60秒重置一次进度条（或根据实际需求调整）
-        const progress = (elapsed % 60000) / 60000 * 100;
-        document.getElementById('progressBar').style.width = `${progress}%`;
+        const progress = ((elapsed % 60000) / 60000) * 100;
+        document.getElementById("progressBar").style.width = `${progress}%`;
       }
 
-      // 格式化时间戳
       function formatTimestamp() {
         const now = new Date();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const milliseconds = String(now.getMilliseconds()).padStart(3, '0').slice(0, 2);
-        return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+        const h = String(now.getHours()).padStart(2, "0");
+        const m = String(now.getMinutes()).padStart(2, "0");
+        const s = String(now.getSeconds()).padStart(2, "0");
+        const ms = String(now.getMilliseconds()).padStart(3, "0").slice(0, 2);
+        return `${h}:${m}:${s}.${ms}`;
       }
 
-      // 日志记录函数
       const log = (msg) => {
-        const logDiv = document.getElementById('log');
+        const logDiv = document.getElementById("log");
         const timestamp = formatTimestamp();
         logDiv.innerHTML += `<span class="timestamp">[${timestamp}]</span> ${msg}<br>`;
         logDiv.scrollTop = logDiv.scrollHeight;
       };
 
-      // 清除日志
       const clearLog = () => {
-        document.getElementById('log').innerHTML = '';
-        log('日志已清除');
+        document.getElementById("log").innerHTML = "";
+        log("日志已清除");
       };
 
-      // 设置状态显示
       const setStatus = (msg) => {
-        document.getElementById('status').innerText = `状态：${msg}`;
+        document.getElementById("status").innerText = `状态：${msg}`;
       };
 
-      // 连接 WebSocket
+      // 显示 ASR 结果
+      const showAsrResult = () => {
+        document.getElementById("asrResultContainer").style.display = "block";
+      };
+
+      const setAsrPartial = (text) => {
+        document.getElementById("asrPartial").innerText = text;
+        showAsrResult();
+      };
+
+      const setAsrFinal = (text) => {
+        document.getElementById("asrFinal").innerText = text;
+        showAsrResult();
+      };
+
+      const clearAsrResult = () => {
+        document.getElementById("asrPartial").innerText = "";
+        document.getElementById("asrFinal").innerText = "";
+        // 可选：隐藏容器（或保留显示最终结果）
+        // document.getElementById('asrResultContainer').style.display = 'none';
+      };
+
       const connectWebSocket = () => {
-        // 获取当前页面的主机名和端口，避免硬编码
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsProtocol =
+          window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
         socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
-          log('✅ WebSocket 连接成功');
-          setStatus('已连接');
+          log("✅ WebSocket 连接成功");
+          setStatus("已连接");
         };
 
         socket.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
-            
-            // 根据消息类型进行处理和展示
-            if (msg.type === 'vad_result') {
-              log(`🎯 语音片段: ${JSON.stringify(msg.segments)}`);
-              isSpeaking = msg.is_active;
-              if (!msg.is_active) {
-                log(`🔊 说话结束，可以触发 ASR`);
-              }
-            } 
-            // VAD 事件处理（人声开始/结束）
-            else if (msg.type === 'vad_event') {
-              if (msg.event === 'voice_start') {
-                log(`🎤 <span style="color: green;">检测到人声开始</span>`);
-                isSpeaking = true;
-                setStatus('检测到人声...');
-              } else if (msg.event === 'voice_end') {
-                log(`🔇 <span style="color: blue;">检测到人声结束</span>`);
+
+            // 所有消息都包含 type 和 payload
+            const { type, payload, timestamp, session_id } = msg;
+
+            // 日志记录原始事件（可选）
+            // log(`📩 ${type}: ${JSON.stringify(payload)}`);
+
+            switch (type) {
+              case "vad_event":
+                if (payload.event === "voice_start") {
+                  log(`🎤 <span style="color: green;">检测到人声开始</span>`);
+                  isSpeaking = true;
+                  setStatus("检测到人声...");
+                  clearAsrResult(); // 新语音开始，清空上一轮结果
+                } else if (payload.event === "voice_end") {
+                  log(`🔇 <span style="color: blue;">检测到人声结束</span>`);
+                  isSpeaking = false;
+                  setStatus("语音结束，处理中...");
+                }
+                break;
+
+              case "wakeup":
+                log(
+                  `✨ <span style="color: #1976d2; font-weight: bold;">唤醒词已触发！</span>`
+                );
+                setStatus("唤醒成功，正在识别...");
+                break;
+
+              case "interrupt":
+                log(
+                  `✋ <span style="color: orange;">检测到新唤醒，已打断当前识别</span>`
+                );
+                setStatus("识别已打断");
+                clearAsrResult();
+                break;
+
+              case "asr_event":
+                if (payload.partial) {
+                  setAsrPartial(payload.partial);
+                  log(`📝 流式识别: ${payload.partial}`);
+                }
+                break;
+
+              case "asr_result":
+                if (payload.final !== undefined) {
+                  setAsrFinal(payload.final || "（无识别结果）");
+                  log(
+                    `🎯 最终识别结果: <strong>${
+                      payload.final || "（空）"
+                    }</strong>`
+                  );
+                  setStatus("识别完成");
+                }
+                break;
+
+              case "info":
+                log(`ℹ️ ${payload.message}`);
+                setStatus(payload.message);
+                break;
+
+              case "warning":
+                log(
+                  `⚠️ <span style="color: orange;">${payload.message}</span>`
+                );
+                setStatus("警告：" + payload.message);
+                break;
+
+              case "error":
+                log(`❌ <span style="color: red;">${payload.message}</span>`);
+                setStatus("错误：" + payload.message);
                 isSpeaking = false;
-                setStatus('处理中...');
-              }
-            }
-            // 状态消息处理
-            else if (msg.status === 'started') {
-              log(`✅ ${msg.message}`);
-              setStatus('开始接收音频');
-              startTime = new Date().getTime();
-              // 开始进度条更新
-              setInterval(updateProgressBar, 100);
-            } else if (msg.status === 'stopped') {
-              log(`✅ ${msg.message}`);
-              setStatus('识别结束');
-              isSpeaking = false;
-              startTime = null;
-              document.getElementById('progressBar').style.width = '0%';
-            }
-            // 信息消息处理
-            else if (msg.type === 'info') {
-              log(`ℹ️ ${msg.message}`);
-            }
-            // 警告消息处理
-            else if (msg.type === 'warning') {
-              log(`⚠️ <span style="color: orange;">${msg.message}</span>`);
-              setStatus('警告状态');
-            }
-            // 错误消息处理
-            else if (msg.type === 'error') {
-              log(`❌ <span style="color: red;">${msg.message}</span>`);
-              setStatus('错误状态');
-              isSpeaking = false;
-            }
-            // 未处理的消息类型
-            else {
-              log(`📩 收到未知类型消息: ${JSON.stringify(msg)}`);
+                break;
+
+              default:
+                log(`❓ 未知消息类型: ${type}`);
             }
           } catch (e) {
-            log(`❌ 解析消息失败: ${event.data}`);
+            log(`❌ 消息解析失败: ${event.data}`);
           }
         };
 
         socket.onerror = (error) => {
           log(`❌ WebSocket 错误: ${error.message}`);
-          setStatus('连接失败');
+          setStatus("连接失败");
           isSpeaking = false;
         };
 
         socket.onclose = () => {
-          log('🔌 WebSocket 已断开');
-          setStatus('已断开');
+          log("🔌 WebSocket 已断开");
+          setStatus("已断开");
           isSpeaking = false;
           startTime = null;
-          document.getElementById('progressBar').style.width = '0%';
+          document.getElementById("progressBar").style.width = "0%";
         };
       };
 
-      // 开始录音
-      document.getElementById('startBtn').onclick = async () => {
+      document.getElementById("startBtn").onclick = async () => {
         try {
-          // 1. 连接 WebSocket
           if (!socket || socket.readyState !== WebSocket.OPEN) {
             connectWebSocket();
-            // 等待连接建立
             await new Promise((r) => setTimeout(r, 500));
           }
 
-          // 2. 请求麦克风权限
           mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
           });
-          audioContext = new (window.AudioContext || window.webkitAudioContext)({
-            sampleRate: 16000, // ←←← 必须！
-          });
+          audioContext = new (window.AudioContext || window.webkitAudioContext)(
+            {
+              sampleRate: 16000,
+            }
+          );
           const source = audioContext.createMediaStreamSource(mediaStream);
 
-          // 3. 创建脚本处理器
           processor = audioContext.createScriptProcessor(4096, 1, 1);
           processor.onaudioprocess = (e) => {
-            const input = e.inputBuffer.getChannelData(0); // Float32Array, -1.0 ~ +1.0
-
-            // 截断音频为160的倍数
+            const input = e.inputBuffer.getChannelData(0);
             const validLength = Math.floor(input.length / 160) * 160;
             const validAudio = input.slice(0, validLength);
-            
-            // 计算音频能量
             const max = Math.max(...validAudio.map(Math.abs));
-            
-            // 更新音量指示器
             updateVolumeIndicator(max);
 
-            // 发送音频数据
             if (socket && socket.readyState === WebSocket.OPEN) {
               socket.send(
-                JSON.stringify({ type: 'audio', data: Array.from(validAudio) })
+                JSON.stringify({ type: "audio", data: Array.from(validAudio) })
               );
             }
           };
@@ -347,40 +387,39 @@
           source.connect(processor);
           processor.connect(audioContext.destination);
 
-          // 启用/禁用按钮
-          document.getElementById('startBtn').disabled = true;
-          document.getElementById('stopBtn').disabled = false;
-          setStatus('录音中...');
+          document.getElementById("startBtn").disabled = true;
+          document.getElementById("stopBtn").disabled = false;
+          setStatus("录音中...");
+          startTime = new Date().getTime();
+          setInterval(updateProgressBar, 100);
         } catch (err) {
           log(`❌ 录音失败: ${err.message}`);
+          setStatus("录音失败");
         }
       };
 
-      // 停止录音
-      document.getElementById('stopBtn').onclick = () => {
-        if (processor) {
-          processor.disconnect();
+      document.getElementById("stopBtn").onclick = () => {
+        if (processor) processor.disconnect();
+        if (audioContext) audioContext.close();
+        if (mediaStream) mediaStream.getTracks().forEach((t) => t.stop());
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "stop" }));
         }
-        if (audioContext) {
-          audioContext.close();
-        }
-        if (mediaStream) {
-          mediaStream.getTracks().forEach((track) => track.stop());
-        }
-        if (socket) {
-          socket.send(JSON.stringify({ type: 'stop' }));
-        }
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('stopBtn').disabled = true;
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled = true;
         isSpeaking = false;
         updateVolumeIndicator(0);
+        startTime = null;
+        document.getElementById("progressBar").style.width = "0%";
       };
 
-      // 清除日志按钮事件
-      document.getElementById('clearBtn').onclick = clearLog;
+      document.getElementById("clearBtn").onclick = clearLog;
 
-      // 页面加载时初始化音量指示器
-      window.onload = initVolumeIndicator;
+      window.onload = () => {
+        initVolumeIndicator();
+        // 初始隐藏 ASR 结果区
+        document.getElementById("asrResultContainer").style.display = "none";
+      };
     </script>
   </body>
 </html>

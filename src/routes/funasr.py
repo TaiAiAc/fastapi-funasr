@@ -53,15 +53,22 @@ async def websocket_asr(websocket: WebSocket):
                     if not isinstance(audio_list, list):
                         raise ValueError("audio data must be a list of floats")
 
-                    audio_chunk = np.array(audio_list, dtype=np.float32)
-                    if not (
-                        -1.0 <= audio_chunk.min() <= 1.0
-                        and -1.0 <= audio_chunk.max() <= 1.0
-                    ):
-                        raise ValueError("音频数据超出 [-1, 1] 范围")
-                    if len(audio_chunk) % 160 != 0:
-                        raise ValueError("音频块长度需为160的倍数（10ms对齐）")
+                    if len(audio_list) == 0:
+                        debug("收到空音频块，跳过处理")
+                        continue
 
+                    audio_chunk = np.array(audio_list, dtype=np.float32)
+
+                    if np.any(np.abs(audio_chunk) > 1.0):
+                        max_val = np.max(np.abs(audio_chunk))
+                        audio_chunk = (
+                            audio_chunk / max_val
+                        )  # 或 / 32768.0 if from int16
+                        debug(
+                            f"音频超出 [-1,1]，已自动归一化（原最大值: {max_val:.2f}）"
+                        )
+
+                    # 1. 先加音频到状态机（用于后续 KWS/ASR）
                     state_machine.add_audio_chunk(audio_chunk)
                     audio_int16 = AudioConverter.to_int16(audio_chunk)
 
@@ -79,7 +86,8 @@ async def websocket_asr(websocket: WebSocket):
 
                 except Exception as e:
                     error(f"处理音频失败: {e}")
-                    await websocket.send_json({"type": "error", "message": str(e)})
+                    await handler.send_error("处理音频失败")
+
 
             elif msg_type in ("stop", "reset"):
                 state_machine.reset()
@@ -98,6 +106,5 @@ async def websocket_asr(websocket: WebSocket):
     finally:
         active_sessions.pop(session_id, None)
         active_handlers.pop(session_id, None)
-        if websocket.client_state == 1:
-            await websocket.close()
+        await websocket.close()
         info("WebSocket 连接已关闭")

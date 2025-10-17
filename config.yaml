@@ -3,37 +3,50 @@ app:
 
 # VAD 服务配置
 vad:
-  model_name: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
-  device: "auto"
-  # 可以在这里添加更多VAD相关配置
-  params:
-    model_revision: "v2.0.4"
-    max_end_silence_time: 600    # 尾部静音超时（ms）
-    speech_noise_thres: 0.8    # 语音/噪音阈值（0~1）
+  options:
+    model: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    revision: "v2.0.4"
+    device: "cpu"
     disable_pbar: true          # 是否禁用进度条
     disable_log: false           # 是否禁用日志输出
     disable_update: true        # 是否禁用模型更新
     output_dir: "logs/vad"        # 输出目录
+  generate:
+    chunk_size: 200  # 流式处理的块大小  
+    max_end_silence_time: 300    # 尾部静音超时（ms）
+    speech_noise_thres: 0.7    # 语音/噪音阈值（0~1）
+    sil_to_speech_time_thres: 150  # 静音到语音的时间阈值（ms）
+    speech_to_sil_time_thres: 150  # 语音到静音的时间阈值（ms）
+    lookahead_time_end_point: 100  #  减少对结束点的过度扩展，提高切分精度
+
 
 # KWS 服务配置
 kws:
-  model_name: "iic/speech_charctc_kws_phone-xiaoyun"
-  device: "cpu"
-  # 可以在这里添加更多KWS相关配置
-  params:
+  options:
+    model: "iic/speech_charctc_kws_phone-xiaoyun"
+    revision: "v2.0.4"
+    device: "cpu"
     keywords: '你好'
     output_dir: "logs/kws"        # 输出目录
     disable_pbar: true          # 是否禁用进度条
     disable_log: true           # 是否禁用日志输出
     disable_update: true        # 是否禁用模型更新
+  generate:
+  score: 0.1
+
 
 # ASR 服务配置
 asr:
-  model_name: "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
-  device: "cuda"
-  # 可以在这里添加更多ASR相关配置
-  params:
-    model_revision: "v2.0.4"
+  options:
+    model: "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online"
+    revision: "v2.0.4"
+    device: "cuda"
     output_dir: "logs/asr"        # 输出目录
-    chunk_size: 5  # 流式处理的块大小
     disable_update: true        # 是否禁用模型更新
+  generate:
+    use_itn: true        # 输出结果中是否包含标点与逆文本正则化
+    ban_emo_unk: false        # 是否禁用情感未知标签
+    chunk_size: [0, 10, 5]  # 流式处理的块大小  
+    encoder_chunk_look_back: 4  # 编码器Look Back窗口大小
+    decoder_chunk_look_back: 1  # 解码器Look Back窗口大小
+

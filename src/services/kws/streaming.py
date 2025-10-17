@@ -1,37 +1,28 @@
 # src/services/kws/streaming.py
 
-from typing import Optional
+from ...utils import debug, error, info
 import numpy as np
-from ...utils import info, error, debug
+from typing import Optional
+from typing import Dict, Any
 
 
 class StreamingKWSService:
-    """
-    流式语音端点检测服务（专为 xiaoyun 唤醒词设计）
-    通过维护滑动窗口缓冲区模拟流式检测
-    """
-
     def __init__(
         self,
-        model,
-        buffer_duration_sec: float = 1.5,
+        kws_service,
+        generate_options: Dict[str, Any],
+        buffer_duration_sec: float = 0.3,  # 缓冲时长从1.5秒降至0.3秒
         sample_rate: int = 16000,
-    ):
-        """
-        Args:
-            buffer_duration_sec: 缓冲区最大时长（秒），建议 1.0 ~ 1.8
-            sample_rate: 音频采样率，固定为 16000
-        """
-        self.model = model
-        if not self.model.is_initialized:
-            raise RuntimeError("KWS 模型未初始化")
+        chunk_size: list = [0, 5, 2],
+    ):  # 分块参数调整为300ms
+        self.kws_service = kws_service
         self.sample_rate = sample_rate
         self.max_buffer_samples = int(buffer_duration_sec * sample_rate)
         self.reset()
 
     def reset(self):
-        """重置内部状态"""
-        self._buffer: list[np.ndarray] = []
+        self._buffer = []
+        self.cache = {}  # 显式重置cache为空字典
         self._total_samples = 0
         self.is_keyword_detected = False
 
@@ -50,37 +41,38 @@ class StreamingKWSService:
         return np.concatenate(self._buffer)
 
     def detect_keyword_stream(self, chunk: np.ndarray) -> bool:
-        """
-        输入音频块（如 320/640/960 点，20/40/60ms），累积后进行关键词检测
-        返回是否检测到唤醒词（一旦检测到，后续调用将直接返回 True）
-        """
         if self.is_keyword_detected:
             return True
 
-        if chunk.dtype not in (np.float32, np.int16):
-            raise ValueError("音频块必须是 float32 或 int16")
+        # 转为 float32 [-1, 1]
+        if chunk.dtype == np.int16:
+            chunk = chunk.astype(np.float32) / 32768.0
+        elif chunk.dtype != np.float32:
+            raise ValueError(f"Unsupported dtype: {chunk.dtype}")
 
-        # 累积到缓冲区
-        self._buffer.append(chunk)
-        self._total_samples += len(chunk)
-        self._trim_buffer()
-
-        # 获取当前完整音频用于检测
-        audio_data = self._get_buffered_audio()
-        if audio_data is None or len(audio_data) < 800:  # 至少 50ms
-            return False
-
-        # 调用 KWS 检测（同步）
         try:
-            keyword = self.model.detect_keyword(audio_data)
-            if keyword is not None:
+            # 调用流式接口
+            output = self.kws_service._model.generate(
+                **self.generate_options,
+                input=chunk,
+                cache=self.cache,
+                return_cache=True,
+            )
+
+            keyword = self.kws_service.parse_kws_result(
+                output, threshold=0.1
+            )  # 提高阈值至0.3
+            if keyword:
                 self.is_keyword_detected = True
-                debug(f"StreamingKWS: 检测到唤醒词 '{keyword}'")
+                self.reset()  # 检测到唤醒词后重置缓冲区
                 return True
+
             return False
+
         except Exception as e:
-            error(f"流式KWS检测异常: {e}")
+            error(f"流式KWS异常: {e}")
             return False
 
     def is_detected(self) -> bool:
+        """是否检测到关键词"""
         return self.is_keyword_detected

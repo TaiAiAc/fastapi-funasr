@@ -3,7 +3,7 @@
 import time
 import torch
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict
 from ..utils import info, error, warning, resolve_device
 
 
@@ -15,20 +15,15 @@ class BaseModelService(ABC):
 
     def __init__(
         self,
-        model_name: str,
-        device: str = "auto",
-        init_params: Optional[Dict[str, Any]] = None,
+        model_options: Dict[str, Any],
         service_name: str = "模型服务",
     ):
-        self.model_name = model_name
-        self.device_config = device
-        self.init_params = init_params or {}
+        self.model_options = model_options
+        self.options = model_options.get("options", {})
         self.service_name = service_name
 
         self._model = None
-        self._device = None
         self._is_initialized = False
-        self._is_streaming = False
 
     def start(self):
         """启动服务：加载模型"""
@@ -39,21 +34,11 @@ class BaseModelService(ABC):
         start_time = time.time()
         info(f"🚀 启动 {self.service_name}...")
 
-        # 解析设备
-        self._device = resolve_device(self.device_config)
-
-        # 构建模型参数
-        model_params = {
-            "model": self.model_name,
-            "device": self._device,
-            **self.init_params,
-        }
-
         try:
-            info(f"正在加载 {self.service_name} 模型参数: {self.init_params}")
+            info(f"正在加载 {self.service_name} 模型配置: {self.model_options}")
 
             # 调用子类实现的 _load_model 方法
-            self._model = self._load_model(**model_params)
+            self._model = self._load_model(**self.options)
 
             self._is_initialized = True
             elapsed = time.time() - start_time
@@ -69,16 +54,14 @@ class BaseModelService(ABC):
             torch.cuda.empty_cache()
             info(f"⏹️  {self.service_name} 已停止")
         self._is_initialized = False
-        self._is_streaming = False
 
     def get_init_info(self) -> Dict[str, Any]:
         """获取初始化信息"""
         return {
-            "model_name": self.model_name,
             "initialized": self._is_initialized,
             "init_time": self._init_time,
             "model_available": self._model is not None,
-            "device": self._device,
+            **self.options,
         }
 
     @abstractmethod
@@ -89,13 +72,5 @@ class BaseModelService(ABC):
         pass
 
     @property
-    def device(self) -> str:
-        return self._device
-
-    @property
     def is_initialized(self) -> bool:
         return self._is_initialized
-
-    @property
-    def is_streaming(self) -> bool:
-        return self._is_streaming

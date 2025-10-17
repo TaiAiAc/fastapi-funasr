@@ -7,7 +7,7 @@ from threading import Lock
 logger = logging.getLogger(__name__)
 
 
-class ConfigManager:
+class GlobalConfig:
     """
     配置管理器类，使用严格的单例模式实现
     负责加载、解析和提供配置，确保配置只在服务启动时加载一次
@@ -24,7 +24,7 @@ class ConfigManager:
         """创建单例实例的线程安全实现"""
         with cls._lock:
             if cls._instance is None:
-                cls._instance = super(ConfigManager, cls).__new__(cls)
+                cls._instance = super(GlobalConfig, cls).__new__(cls)
         return cls._instance
 
     def __init__(self):

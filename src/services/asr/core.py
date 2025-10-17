@@ -2,7 +2,7 @@
 
 from ...utils import debug, info, error
 from .streaming import StreamingASRService
-from ...config import config_manager
+from ...common import global_config
 from funasr import AutoModel
 from ..base_model_service import BaseModelService
 
@@ -17,14 +17,9 @@ class ASRService(BaseModelService):
     def __init__(self):
         """初始化ASR服务，确保模型只被加载一次"""
         # 从配置读取
-        asr_config = config_manager.get_asr_config()
+        self.asr_config = global_config.get_asr_config()
 
-        super().__init__(
-            model_name=asr_config.get("model_name"),
-            device=asr_config.get("device", "auto"),
-            init_params=asr_config.get("params", {}),
-            service_name="ASR服务",
-        )
+        super().__init__(service_name="ASR服务", model_options=self.asr_config)
 
     def _load_model(self, **kwargs):
         """加载ASR模型"""
@@ -38,6 +33,4 @@ class ASRService(BaseModelService):
         """创建流式会话"""
         if not self.is_initialized:
             raise RuntimeError("ASR模型未初始化，请先调用 start()")
-        return StreamingASRService(
-            self._model,
-        )
+        return StreamingASRService(self._model, self.asr_config.get("generate", {}))

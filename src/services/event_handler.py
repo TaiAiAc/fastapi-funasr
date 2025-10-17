@@ -1,12 +1,19 @@
-# src/services/websocket_session.py
+# src/services/event_handler.py
 
-import json
+from enum import Enum
+import asyncio
+import time
 import numpy as np
 from fastapi import WebSocket
-
-from ..utils import info, debug, error
 from .kws import kws_service
 from .asr import asr_service
+from ..utils import debug, error, info
+
+
+class SessionState(Enum):
+    IDLE = "idle"
+    SPEAKING = "speaking"
+    WAKEUP = "wakeup"
 
 
 class EventHandler:
@@ -15,73 +22,91 @@ class EventHandler:
         self.session_id = session_id
         self.kws_service = kws_service
         self.asr_service = asr_service
-        self._has_interrupted = False  # 可选：记录是否已被打断
-        self._kws_stream = None  # 新增：每个会话独立的 KWS 流
-        self._is_wake_up = False
+        self._state = SessionState.IDLE
+        self._kws_stream = None
+        self._asr_stream = None
 
-    async def on_voice_start(self):
-        # 每次人声开始，重置 KWS 流（避免跨句误触发）
-        if self.kws_service.is_initialized:
-            self._kws_stream = self.kws_service.create_stream()
-        self._is_wake_up = False
+    def _now_ms(self) -> int:
+        return int(time.time() * 1000)
 
+    async def _send(self, msg_type: str, payload: dict = None):
+        """统一发送格式"""
         await self.websocket.send_json(
             {
-                "type": "vad_event",
-                "event": "voice_start",
-                "message": f"会话 {self.session_id} 检测到人声开始",
+                "type": msg_type,
+                "payload": payload or {},
+                "timestamp": self._now_ms(),
+                "session_id": self.session_id,
             }
         )
 
-    async def on_voice_active(self, chunk: np.ndarray, timestamp_ms: int):
-        # 1. 如果尚未唤醒，尝试 KWS 检测
-        if (
-            not self._is_wake_up
-            and self.kws_service.is_initialized
-            and self._kws_stream
-        ):
+    async def on_voice_start(self):
+        if self._state != SessionState.IDLE:
+            return
+        self._state = SessionState.SPEAKING
+        self._kws_stream = self.kws_service.create_stream()
+        await self._send("vad_event", {"event": "voice_start"})
+
+    async def on_voice_active(self, chunk: np.ndarray):
+        if self._state == SessionState.WAKEUP:
+            if self._asr_stream:
+                try:
+                    partial_text = self._asr_stream.feed_chunk(chunk)
+                    if partial_text:
+                        await self._send("asr_event", {"partial": partial_text})
+                except Exception as e:
+                    error(f"ASR 流式识别异常: {e}")
+            return
+
+        if self._state == SessionState.SPEAKING and self._kws_stream:
             try:
-                flag = self._kws_stream.detect_keyword_stream(chunk)
-
-                info(f"会话 {self.session_id} 尝试 KWS 检测，时间戳: {timestamp_ms}ms 检测结果: {flag}")
-
-                if flag:
-                    self._is_wake_up = True
-                    await self.on_vad_interrupt()  # 触发打断
-                    return
+                if self._kws_stream.detect_keyword_stream(chunk):
+                    await self._trigger_wakeup()
             except Exception as e:
                 error(f"KWS 流式检测异常: {e}")
 
-        # 2. 如果已唤醒，可送入 ASR（后续实现）
-        # if self._is_wake_up and self.asr_service.is_initialized:
-        #     partial = await self.asr_service.recognize_stream(chunk)
-        #     if partial:
-        #         await self.send_asr_partial(partial)
+    async def _trigger_wakeup(self):
+        if self._state == SessionState.WAKEUP:
+            # 打断：结束当前 ASR，新建流
+            if self._asr_stream:
+                try:
+                    self._asr_stream.finalize()
+                except Exception as e:
+                    error(f"ASR finalize 失败: {e}")
+            await self._send("interrupt")
+        else:
+            self._state = SessionState.WAKEUP
+            await self._send("wakeup")
+
+        # 创建新的 ASR 流
+        if self.asr_service.is_initialized:
+            self._asr_stream = self.asr_service.create_stream()
 
     async def on_voice_end(self, full_audio: np.ndarray, start_ms: int, end_ms: int):
-        # 可选：用完整音频做最终识别
-        self._has_interrupted = True
-        self._is_wake_up = True  # 标记已唤醒
-        final_text = ""
-        if self.asr_service.is_initialized:
-            # final_text = await self.asr_service.finalize(full_audio)
-            pass
+        try:
+            if self._state == SessionState.WAKEUP:
+                final_text = ""
+                if self._asr_stream:
+                    try:
+                        final_text = self._asr_stream.finalize()
+                    except Exception as e:
+                        error(f"ASR finalize 异常: {e}")
+                await self._send("asr_result", {"final": final_text})
+            # SPEAKING 状态无输出，静默结束
+        finally:
+            self._state = SessionState.IDLE
+            self._reset()
 
-        await self.websocket.send_json(
-            {"type": "vad_event", "event": "asr_final", "message": "语音识别结束"}
-        )
+    def _reset(self):
+        self._kws_stream = None
+        self._asr_stream = None
 
-    async def on_vad_interrupt(self):
-        self._has_interrupted = True
-        await self.asr_service.interrupt()
-        await self.websocket.send_json(
-            {"type": "interrupt", "message": "检测到唤醒词，已打断当前识别"}
-        )
+    # 可选：暴露 info/warning/error 给路由层调用
+    async def send_info(self, message: str):
+        await self._send("info", {"message": message})
 
     async def send_warning(self, message: str):
-        await self.websocket.send_text(
-            json.dumps({"type": "warning", "message": message})
-        )
+        await self._send("warning", {"message": message})
 
-    async def send_info(self, message: str):
-        await self.websocket.send_json({"type": "info", "message": message})
+    async def send_error(self, message: str):
+        await self._send("error", {"message": message})
