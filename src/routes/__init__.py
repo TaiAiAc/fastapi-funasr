@@ -4,6 +4,9 @@ from ..utils import logger
 # 导入各个路由模块
 from .recognition import recognition_router
 from .funasr import websocket_router  # 更新导入名称
+from .test_asr import test_asr_router
+from .test_kws import test_kws_router
+from .test_vad import test_vad_router
 
 
 def register_routers(app: FastAPI):
@@ -12,7 +15,10 @@ def register_routers(app: FastAPI):
     """
     # 注册各个路由模块
     app.include_router(recognition_router)
-    app.include_router(websocket_router)  # 使用新名称
+    app.include_router(websocket_router)
+    app.include_router(test_asr_router)
+    app.include_router(test_kws_router)
+    app.include_router(test_vad_router)
     # 可以继续添加其他路由模块
-    
+
     logger.info("所有路由已成功注册")

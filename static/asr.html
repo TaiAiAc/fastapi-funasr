@@ -245,7 +245,8 @@
       const connectWebSocket = () => {
         const wsProtocol =
           window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
+        // const wsUrl = `${wsProtocol}//${window.location.host}/funasr/ws`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/test_asr/ws`;
         socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
@@ -378,15 +379,9 @@
 
             if (socket && socket.readyState === WebSocket.OPEN) {
               // ✅ 转为二进制发送（高效！）
-              // const float32 = new Float32Array(input);
-              // const buffer = float32.buffer; // ArrayBuffer
-              // socket.send(buffer); // 直接发二进制！
-              const int16 = new Int16Array(input.length);
-              for (let i = 0; i < input.length; i++) {
-                const clamped = Math.max(-1, Math.min(1, input[i])); // 防溢出
-                int16[i] = clamped < 0 ? clamped * 32768 : clamped * 32767;
-              }
-              socket.send(int16.buffer); // 发送 2 字节/采样点
+              const float32 = new Float32Array(input);
+              const buffer = float32.buffer; // ArrayBuffer
+              socket.send(buffer); // 直接发二进制！
             }
           };
 

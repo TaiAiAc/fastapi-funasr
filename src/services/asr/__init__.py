@@ -1,8 +1,7 @@
-from .core import ASRService, StreamingASRService
-
+from .core import ASRService
+from .streaming import StreamingASRService
 
 asr_service = ASRService()
-
 
 def preload_asr_model() -> bool:
     """预加载 ASR 模型"""

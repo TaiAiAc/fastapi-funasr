@@ -15,6 +15,11 @@ from .services import preload_asr_model
 from .utils import info,debug, error
 import os
 
+# 配置模型目录 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+model_dir = os.path.join(current_dir,'..', "models")
+os.environ['MODELSCOPE_CACHE'] = model_dir
+
 # 创建 FastAPI 应用实例
 app = FastAPI(
     title="Web Service",

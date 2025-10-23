@@ -5,6 +5,7 @@ from .streaming import StreamingKWSService
 from ...common import global_config
 from funasr import AutoModel
 from ..base_model_service import BaseModelService
+from typing import Optional, Dict, Any
 import numpy as np
 
 
@@ -19,35 +20,37 @@ class KWSService(BaseModelService):
         """初始化KWS服务，确保模型只被加载一次"""
         # 从配置读取
         self.kws_config = global_config.get_kws_config()
-
+        self.reset()
         super().__init__(service_name="KWS服务", model_options=self.kws_config)
 
     def _load_model(self, **kwargs):
         """加载KWS模型"""
         return AutoModel(**kwargs)
 
-    def infer(self, audio_input, **kwargs):
-        """非流式推理"""
-        return self._model.generate(input=audio_input, **kwargs)
+    def reset(self):
+        """重置状态"""
+        self.cache = {}
+        self.is_active = True  # 可用于状态机控制
 
-    def detect_keyword(self, audio: np.ndarray) -> str | None:
-        try:
-
-            if not self.is_initialized:
-                raise RuntimeError("KWS 模型未初始化")
-
-            audio = np.clip(audio, -1.0, 1.0)
-
-            result = self._model.generate(input=audio)  # ← 传 float32！
-            info(f"KWS 原始输出: {result}")
-            if not isinstance(result, list) or len(result) == 0:
-                return None
-
-            return self.parse_kws_result(result)
-
-        except Exception as e:
-            error(f"KWS detect_keyword 异常: {e}")
+    def process_chunk(self, audio_chunk: np.ndarray) -> Optional[Dict[str, Any]]:
+        """
+        流式处理音频块，返回检测结果（如有）
+        audio_chunk: float32, shape=(N,), 16kHz, 单声道, [-1, 1]
+        """
+        if not self.is_active:
             return None
+
+        result = self._model.generate(
+            input=audio_chunk,
+            cache=self.cache,
+        )
+        debug(f"KWS 原始结果: {result}")
+        debug(f"KWS 当前缓存块⌚️: {id(self.cache)}")
+
+        # 解析结果
+        keyword = self.parse_kws_result(result, threshold=0.1)
+
+        return keyword 
 
     def parse_kws_result(self, result, threshold: float = 0.1) -> str | None:
         """
@@ -100,8 +103,4 @@ class KWSService(BaseModelService):
             debug(log_msg + f" ❌ (低于阈值 {threshold})")
             return None
 
-    def create_stream(self):
-        """创建流式会话"""
-        if not self.is_initialized:
-            raise RuntimeError("KWS模型未初始化，请先调用 start()")
-        return StreamingKWSService(self, self.kws_config.get("generate", {}))
+

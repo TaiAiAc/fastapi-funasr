@@ -5,8 +5,11 @@ import numpy as np
 from typing import Dict
 from fastapi import APIRouter, WebSocket
 
-from ..utils import info, debug, error, AudioConverter
+from ..common import VADState
+from ..utils import info, debug, error, AudioSessionRecorder
 from ..services import vad_service, StateMachine, EventHandler
+from fastapi import WebSocketDisconnect
+import json
 
 websocket_router = APIRouter(
     prefix="/funasr",
@@ -22,6 +25,7 @@ async def websocket_asr(websocket: WebSocket):
     await websocket.accept()
     session_id = str(uuid.uuid4())
     stream = None
+    recorder = AudioSessionRecorder(session_id)
 
     info(f"WebSocket 连接已建立，会话ID: {session_id}")
 
@@ -37,77 +41,65 @@ async def websocket_asr(websocket: WebSocket):
             stream = vad_service.create_stream()
 
         while True:
-            data = await websocket.receive_json()
-            msg_type = data.get("type")
+            message = await websocket.receive()
 
-            if msg_type == "start":
-                state_machine.reset()
-                if stream:
-                    stream.reset()
-                await handler.send_info("开始接收音频")
-                info("客户端开始发送音频")
+            if "bytes" in message:
+                data = message["bytes"]
+                if len(data) % 4 != 0:
+                    print("Invalid audio data length")
+                    continue
 
-            elif msg_type == "audio":
-                try:
-                    audio_list = data.get("data")
-                    if not isinstance(audio_list, list):
-                        raise ValueError("audio data must be a list of floats")
+                # audio_array = np.frombuffer(data, dtype=np.float32)
+                audio_array = np.frombuffer(data, dtype=np.int16)
+                recorder.add_chunk(audio_array)
 
-                    if len(audio_list) == 0:
-                        debug("收到空音频块，跳过处理")
-                        continue
+                # 1. 先加音频到状态机（用于后续 KWS/ASR）
+                state_machine.add_audio_chunk(audio_array)
 
-                    audio_chunk = np.array(audio_list, dtype=np.float32)
+                # ✅ 关键：在状态为 SPEAKING 时，立即触发 active
+                if state_machine.state == VADState.SPEAKING:
+                    await handler.on_voice_active(audio_array)
 
-                    if np.any(np.abs(audio_chunk) > 1.0):
-                        max_val = np.max(np.abs(audio_chunk))
-                        audio_chunk = (
-                            audio_chunk / max_val
-                        )  # 或 / 32768.0 if from int16
-                        debug(
-                            f"音频超出 [-1,1]，已自动归一化（原最大值: {max_val:.2f}）"
-                        )
+                vad_segments = stream.process(audio_array) if stream else []
 
-                    # 1. 先加音频到状态机（用于后续 KWS/ASR）
-                    state_machine.add_audio_chunk(audio_chunk)
-                    audio_int16 = AudioConverter.to_int16(audio_chunk)
+                if vad_segments:
+                    await state_machine.update_vad_result(vad_segments)
 
-                    rms = np.sqrt(np.mean(audio_chunk**2))
+                # 每次都检查是否超时
+                await state_machine.check_silence_timeout()
 
-                    vad_segments = stream.process(audio_int16) if stream else []
+            elif "text" in message:
+                payload = json.loads(message["text"])
+                msg_type = payload.get("type")
 
-                    if vad_segments:
-                        await state_machine.update_vad_result(vad_segments)
+                if msg_type in ("stop", "reset"):
+                    state_machine.reset()
+                    if stream:
+                        stream.reset()
+                    await handler.send_info("已重置")
+                    if msg_type == "stop":
+                        recorder.finalize()
+                        break
 
-                    # 每次都检查是否超时
-                    await state_machine.check_silence_timeout()
+                else:
+                    await handler.send_warning("未知消息类型")
 
-                    # debug(
-                    #     f"""RMS: {rms:.6f}, len: {len(audio_chunk)} ,采样率: {state_machine.sample_rate}, min/max: {audio_chunk.min():.6f} ~ {audio_chunk.max():.6f},
-                    #     VAD segments: {vad_segments}"""
-                    # )
-
-                except Exception as e:
-                    error(f"处理音频失败: {e}")
-                    await handler.send_error("处理音频失败")
-
-
-            elif msg_type in ("stop", "reset"):
-                state_machine.reset()
-                if stream:
-                    stream.reset()
-                await handler.send_info("已重置")
-                if msg_type == "stop":
-                    break
-
-            else:
-                await handler.send_warning("未知消息类型")
+    except WebSocketDisconnect:
+        info("客户端主动断开 WebSocket")
 
     except Exception as e:
         error(f"WebSocket 错误: {e}")
         await websocket.close()
+
     finally:
+        if stream:
+            try:
+                stream.finish()  # ← 新增：正确结束流
+            except Exception as e:
+                error(f"VAD stream finish error: {e}")
+
         active_sessions.pop(session_id, None)
         active_handlers.pop(session_id, None)
+        recorder.finalize()
         await websocket.close()
         info("WebSocket 连接已关闭")

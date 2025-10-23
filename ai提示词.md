@@ -8,8 +8,8 @@
     3. asr模型是iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online
 5. 都需要支持实时流式调用
 6. 都需要支持打断语音唤醒
-7. vad检测出人声后送给kws进行关键词识别
-8. 触发唤醒以后 开始进行asr识别
+7. vad检测出人声后送给asr进行识别
+8. asr识别
 9. asr识别过程中如果检测到唤醒关键词 也需要打断asr识别 进行新的状态流转 
 10. 代码目录结构
     - static\index.html

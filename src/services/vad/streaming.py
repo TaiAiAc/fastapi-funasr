@@ -2,7 +2,7 @@
 
 from typing import List
 import numpy as np
-from ...utils import debug
+from ...utils import debug, AudioConverter,log_audio_input
 from typing import Dict, Any
 
 
@@ -108,27 +108,32 @@ class StreamingVADService:
         Returns:
             VAD检测到的原始段列表（包含[start, -1]等未闭合段）
         """
-        if len(audio_chunk) == 0 or len(audio_chunk) < 160:
-            debug(f"音频块太短 ({len(audio_chunk)} samples)，跳过VAD处理")
-            return []
 
-        if audio_chunk.dtype != np.int16:
-            raise ValueError(f"VAD 流式输入必须是 int16，当前类型: {audio_chunk.dtype}")
-
-        # 根据实际音频长度动态计算chunk_size（帧数），使用四舍五入提高准确性
-        # chunk_ms = len(audio_chunk) / 16.0  # 计算音频chunk的时长（毫秒）
-        # chunk_size = max(1, int(round(chunk_ms / 10)))  # 每帧10ms，至少1帧
-        # debug(f"处理音频块: len={len(audio_chunk)}, chunk_ms={chunk_ms:.1f}ms, chunk_size={chunk_size}")
-
-        # 直接处理每个chunk，不累积
-        result = self.model.generate(
-            **self.generate_options,
-            input=audio_chunk,
-            cache=self.cache,  # 连续传递cache，保持模型状态
-            is_final=False,
+        log_audio_input(
+            audio=audio_chunk,
+            name="VAD",
+            sample_rate=16000,
+            expected_format="int16",  # ← 关键！
         )
 
+        # audio_int16 = AudioConverter.to_int16(audio_chunk, source_dtype="int")
+
+        try:
+            # 直接处理每个chunk，不累积
+            result = self.model.generate(
+                **self.generate_options,
+                input=audio_chunk,
+                cache=self.cache,  # 连续传递cache，保持模型状态
+                is_final=False,
+            )
+        except Exception as e:
+            error(f"VAD 处理失败: {e}")
+            self.reset()
+            return []
+
+        debug(f"VAD 原始输出: {result}")
         segments_ms = result[0].get("value", [])
+
         self.total_samples += len(audio_chunk)
 
         # 仅做格式校验，保留所有合法段（包括 [start, -1]）
@@ -156,12 +161,10 @@ class StreamingVADService:
 
         # 触发final调用，传递空音频
         result = self.model.generate(
+            **self.generate_options,
             input=np.array([], dtype=np.int16),
             cache=self.cache,
-            chunk_size=1,  # 任意小值
             is_final=True,
-            max_end_silence_time=self.max_end_silence_time,
-            speech_noise_thres=self.speech_noise_thres,
         )
 
         final_segments = result[0].get("value", [])

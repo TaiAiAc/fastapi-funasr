@@ -1,4 +1,4 @@
-# src\services\kws\core.py
+# src\services\asr\core.py
 
 from ...utils import debug, info, error
 from .streaming import StreamingASRService
@@ -18,6 +18,7 @@ class ASRService(BaseModelService):
         """初始化ASR服务，确保模型只被加载一次"""
         # 从配置读取
         self.asr_config = global_config.get_asr_config()
+        self.generate_options = self.asr_config.get("generate", {})
 
         super().__init__(service_name="ASR服务", model_options=self.asr_config)
 
@@ -27,10 +28,12 @@ class ASRService(BaseModelService):
 
     def infer(self, audio_input, **kwargs):
         """非流式推理"""
-        return self._model.generate(input=audio_input, **kwargs)
+        return self._model.generate(
+            input=audio_input, **self.generate_options, **kwargs
+        )
 
     def create_stream(self):
         """创建流式会话"""
         if not self.is_initialized:
             raise RuntimeError("ASR模型未初始化，请先调用 start()")
-        return StreamingASRService(self._model, self.asr_config.get("generate", {}))
+        return StreamingASRService(self._model, self.generate_options)
