@@ -10,13 +10,15 @@ vad:
     disable_update: true # 是否禁用模型更新
     output_dir: "logs/vad" # 输出目录
   generate:
-    chunk_size: 200 # 流式处理的块大小
-    max_end_silence_time: 30000 # 尾部静音超时（ms）
-    min_silence_duration_ms: 1000 # 最小静音持续时间（ms）
-    speech_noise_thres: 0.5 # 语音/噪音阈值（0~1）
-    sil_to_speech_time_thres: 1300 # 静音到语音的时间阈值（ms）
-    speech_to_sil_time_thres: 1600 # 语音到静音的时间阈值（ms）
-    lookahead_time_end_point: 100 #  减少对结束点的过度扩展，提高切分精度
+    chunk_size: 100  # 流式处理的块大小
+    max_end_silence_time: 800  # 尾部静音超时（ms）
+    min_silence_duration_ms: 1000  # 最小静音持续时间（ms）
+    speech_noise_thres: 0.5  # 语音/噪音阈值（0~1）
+    sil_to_speech_time_thres: 150  # 静音到语音的时间阈值（ms）
+    speech_to_sil_time_thres: 1000  # 语音到静音的时间阈值（ms）
+    lookback_time_start_point: 100  # 起始点回溯时间
+    lookahead_time_end_point: 50  # 结束点前瞻时间
+    max_single_segment_time: 30000  # 最大单段时长
 
 # KWS 服务配置
 kws:
@@ -40,7 +42,7 @@ asr:
     output_dir: "logs/asr" # 输出目录
     disable_pbar: true # 是否禁用进度条
     disable_update: true # 是否禁用模型更新
-    punc_model: "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch" # 显式加载标点模型
+    # punc_model: "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch" # 显式加载标点模型
     # spk_model: "cam++" # 显式加载说话人模型
   generate:
     use_itn: true # 输出结果中是否包含标点与逆文本正则化

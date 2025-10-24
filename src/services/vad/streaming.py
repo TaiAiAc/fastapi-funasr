@@ -2,7 +2,7 @@
 
 from typing import List
 import numpy as np
-from ...utils import debug, AudioConverter,log_audio_input
+from ...utils import debug, log_audio_input, AudioConverter
 from typing import Dict, Any
 
 
@@ -97,32 +97,32 @@ class StreamingVADService:
 
         return resolved
 
-    def process(self, audio_chunk: np.ndarray) -> List[List[int]]:
+    def process(self, audio_int16: np.ndarray) -> List[List[int]]:
         """
         处理一个音频块（必须为 int16）
         关键点：每个chunk直接送入，动态计算chunk_size，保留原始VAD输出
 
         Args:
-            audio_chunk: 音频数据（int16格式）
+            audio_int16: 音频数据（int16格式）
 
         Returns:
             VAD检测到的原始段列表（包含[start, -1]等未闭合段）
         """
 
-        log_audio_input(
-            audio=audio_chunk,
-            name="VAD",
-            sample_rate=16000,
-            expected_format="int16",  # ← 关键！
-        )
+        # 检查当前chunk的大小
+        # chunk_size_ms = int(len(audio_int16) / 16.0)
+        # debug(f"当前chunk大小: {chunk_size_ms}ms")
+        # log_audio_input(
+        #     audio_int16, expected_format="int16", sample_rate=16000, name="VAD"
+        # )
 
-        # audio_int16 = AudioConverter.to_int16(audio_chunk, source_dtype="int")
-
+        chunk_float32 = AudioConverter.int16_to_float32(audio_int16)
+ 
         try:
             # 直接处理每个chunk，不累积
             result = self.model.generate(
                 **self.generate_options,
-                input=audio_chunk,
+                input=chunk_float32,
                 cache=self.cache,  # 连续传递cache，保持模型状态
                 is_final=False,
             )
@@ -134,7 +134,7 @@ class StreamingVADService:
         debug(f"VAD 原始输出: {result}")
         segments_ms = result[0].get("value", [])
 
-        self.total_samples += len(audio_chunk)
+        self.total_samples += len(chunk_float32)
 
         # 仅做格式校验，保留所有合法段（包括 [start, -1]）
         valid_segments = [
