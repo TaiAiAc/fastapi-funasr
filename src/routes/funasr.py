@@ -49,18 +49,17 @@ async def websocket_asr(websocket: WebSocket):
                     print("Invalid audio data length")
                     continue
 
-                # audio_array = np.frombuffer(data, dtype=np.float32)
-                audio_array = np.frombuffer(data, dtype=np.int16)
-                recorder.add_chunk(audio_array)
+                audio_int16 = np.frombuffer(data, dtype=np.int16)
+                recorder.add_chunk(audio_int16)
 
                 # 1. 先加音频到状态机（用于后续 KWS/ASR）
-                state_machine.add_audio_chunk(audio_array)
+                state_machine.add_audio_chunk(audio_int16)
 
                 # ✅ 关键：在状态为 SPEAKING 时，立即触发 active
                 if state_machine.state == VADState.SPEAKING:
-                    await handler.on_voice_active(audio_array)
+                    await handler.on_voice_active(audio_int16)
 
-                vad_segments = stream.process(audio_array) if stream else []
+                vad_segments = stream.process(audio_int16) if stream else []
 
                 if vad_segments:
                     await state_machine.update_vad_result(vad_segments)
@@ -76,9 +75,8 @@ async def websocket_asr(websocket: WebSocket):
                     state_machine.reset()
                     if stream:
                         stream.reset()
-                    await handler.send_info("已重置")
+                    await handler.send_info("已重置") 
                     if msg_type == "stop":
-                        recorder.finalize()
                         break
 
                 else:

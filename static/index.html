@@ -360,33 +360,53 @@
           }
 
           mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: {
+              sampleRate: 16000,
+              channelCount: 1,
+              volume: 1.0, // 最大音量
+              autoGainControl: false, // 禁用自动增益，避免过度压缩
+              echoCancellation: false,
+              noiseSuppression: false,
+            },
           });
           audioContext = new (window.AudioContext || window.webkitAudioContext)(
             {
               sampleRate: 16000,
             }
           );
+          console.log("AudioContext实际采样率:", audioContext.sampleRate);
           const source = audioContext.createMediaStreamSource(mediaStream);
 
-          const processor = audioContext.createScriptProcessor(1024, 1, 1);
+          const processor = audioContext.createScriptProcessor(2048, 1, 1);
 
           processor.onaudioprocess = (e) => {
-            const input = e.inputBuffer.getChannelData(0); // Float32Array, 16kHz, [-1, 1]
+            const input = e.inputBuffer.getChannelData(0); // Float32Array [-1, 1]
             const max = Math.max(...input.map(Math.abs));
             updateVolumeIndicator(max);
 
             if (socket && socket.readyState === WebSocket.OPEN) {
-              // ✅ 转为二进制发送（高效！）
-              // const float32 = new Float32Array(input);
-              // const buffer = float32.buffer; // ArrayBuffer
-              // socket.send(buffer); // 直接发二进制！
+              // ✅ 正确的转换方式
               const int16 = new Int16Array(input.length);
               for (let i = 0; i < input.length; i++) {
-                const clamped = Math.max(-1, Math.min(1, input[i])); // 防溢出
-                int16[i] = clamped < 0 ? clamped * 32768 : clamped * 32767;
+                // 正确转换：float32 [-1,1] -> int16 [-32768,32767]
+                int16[i] = Math.max(
+                  -32768,
+                  Math.min(32767, Math.round(input[i] * 32767))
+                );
               }
-              socket.send(int16.buffer); // 发送 2 字节/采样点
+              socket.send(int16.buffer);
+
+              // 调试：偶尔打印音频信息
+              if (Math.random() < 0.01) {
+                // 1%的概率打印
+                console.log(
+                  `音频数据: 长度=${input.length}, 音量=${max.toFixed(
+                    4
+                  )}, 转换后最大值=${Math.max(
+                    ...Array.from(int16).map(Math.abs)
+                  )}`
+                );
+              }
             }
           };
 

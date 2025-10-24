@@ -39,12 +39,12 @@ class StreamingASRService:
         self._partial_text = ""
         self._finalized = False
 
-    def feed_chunk(self, chunk: np.ndarray) -> str:
+    def feed_chunk(self, chunk_float32: np.ndarray) -> str:
         # 确保是 float32
         try:
             result = self._model.generate(
                 **self.generate_options,
-                input=chunk,
+                input=chunk_float32,
                 cache=self.cache,
                 is_final=False,
             )
@@ -63,6 +63,7 @@ class StreamingASRService:
             return self._partial_text or ""
 
     def finalize(self) -> Optional[str]:
+
         self._finalized = True
         info(f"ASR finalize: 当前部分结果 = '{self._partial_text}'")
 

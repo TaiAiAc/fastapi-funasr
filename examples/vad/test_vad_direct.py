@@ -8,7 +8,7 @@ from pathlib import Path
 root = Path(Path().anchor)
 print(root)
 
-file_path = root / "examples" / "vad" / "vad_example.wav"
+file_path = root / "examples" / "vad" / "segment_000.wav"
 
 # 1. 读取音频文件
 audio, sr = sf.read(str(file_path))  # 正确读取为 float32

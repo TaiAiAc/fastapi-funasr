@@ -6,7 +6,7 @@ import numpy as np
 from fastapi import WebSocket
 from .kws import kws_service
 from .asr import asr_service
-from ..utils import debug, error, info, warning
+from ..utils import debug, error, info, warning, AudioConverter
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import WebSocketDisconnect
@@ -23,8 +23,8 @@ class ASRAudioBuffer:
     def get_chunks(self):
         chunks = []
         while len(self.buf) >= self.target:
-            chunks.append(self.buf[:self.target])
-            self.buf = self.buf[self.target:]
+            chunks.append(self.buf[: self.target])
+            self.buf = self.buf[self.target :]
         return chunks
 
     def clear(self):
@@ -79,11 +79,12 @@ class EventHandler:
         await self._send("vad_event", {"event": "voice_start"})
 
     async def on_voice_active(self, chunk: np.ndarray):
-        self.audio_buffer.add(chunk)
+        chunk_float32 = AudioConverter.int16_to_float32(chunk)
+        self.audio_buffer.add(chunk_float32)
 
         if self.is_bot_speaking:
             # 数字人正在说话 → 启用 KWS 检测唤醒词
-            has_keyword = self.kws_service.process_chunk(chunk)
+            has_keyword = self.kws_service.process_chunk(chunk_float32)
             if has_keyword:
                 await self._trigger_wakeup()
             return
@@ -93,6 +94,9 @@ class EventHandler:
 
         try:
             chunks = self.audio_buffer.get_chunks()
+
+            if not self._asr_stream:
+                self._asr_stream = self.asr_service.create_stream()
 
             for chunk in chunks:
                 partial_text = self._asr_stream.feed_chunk(chunk)

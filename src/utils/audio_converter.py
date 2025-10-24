@@ -41,7 +41,7 @@ class AudioConverter:
                 warning("检测到 float 音频超出 [-1, 1] 范围，将进行裁剪")
                 audio = np.clip(audio, -1.0, 1.0)
             int16_audio = (audio * 32767.0).astype(np.int16)
-         
+
             return int16_audio
 
         elif source_dtype == "int":
@@ -62,12 +62,51 @@ class AudioConverter:
             raise ValueError(f"不支持的 source_dtype: {source_dtype}")
 
     @staticmethod
-    def to_float32(audio: np.ndarray) -> np.ndarray:
-        """将 int16 音频转为 float32 [-1, 1]，用于保存或通用处理"""
-        if audio.dtype == np.float32:
-            return audio.copy()
-        elif np.issubdtype(audio.dtype, np.integer):
-            float_audio = audio.astype(np.float32) / 32767.0
-            return np.clip(float_audio, -1.0, 1.0)
-        else:
-            raise ValueError(f"无法将 {audio.dtype} 转为 float32")
+    def int16_to_float32(
+        x: Union[np.ndarray, list], normalize: bool = True, allow_clipping: bool = False
+    ) -> np.ndarray:
+        """
+        将 int16 音频数据安全地转换为 float32。
+
+        Args:
+            x (np.ndarray or list): 输入的 int16 音频数据（1D 或 2D）
+            normalize (bool): 是否归一化到 [-1.0, 1.0] 范围（推荐 True）
+            allow_clipping (bool):
+                - 若为 False（默认），当输入包含 -32768 时，除以 32768.0 会导致 -1.0（安全）
+                - 若为 True，使用 32767.0 作为分母（可能导致 +1.00003 溢出，需配合 clip）
+
+        Returns:
+            np.ndarray: float32 类型的音频数组，范围通常为 [-1.0, 1.0]
+
+        Examples:
+            >>> audio_int16 = np.array([0, 16384, -32768], dtype=np.int16)
+            >>> audio_float = int16_to_float32(audio_int16)
+            >>> print(audio_float)
+            [ 0.      0.5    -1.    ]
+        """
+        if isinstance(x, list):
+            x = np.array(x, dtype=np.int16)
+        elif not isinstance(x, np.ndarray):
+            raise TypeError(f"输入必须是 list 或 np.ndarray，实际类型: {type(x)}")
+
+        if x.dtype != np.int16:
+            # 宽松处理：允许其他整数类型，但警告
+            if np.issubdtype(x.dtype, np.integer):
+                x = x.astype(np.int16)
+            else:
+                raise ValueError(f"输入数组 dtype 应为 int16，实际为 {x.dtype}")
+
+        # 转为 float32 避免中间计算溢出
+        x_float = x.astype(np.float32)
+
+        if normalize:
+            if allow_clipping:
+                # 使用 32767.0，但需注意 -32768 / 32767 ≈ -1.00003
+                x_float = x_float / 32767.0
+                # 可选：裁剪到 [-1, 1]
+                # x_float = np.clip(x_float, -1.0, 1.0)
+            else:
+                # 推荐方式：使用 32768.0，确保 -32768 → -1.0，32767 → ~0.99997
+                x_float = x_float / 32768.0
+
+        return x_float
